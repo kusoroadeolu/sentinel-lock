@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: sentinel-lock
+  threads:
+    virtual:
+      enabled: true
+  grpc:
+    server:
+      port: 9090
+
+sentinel-lock:
+  max-queued-registry-clients: 50
+  min-lease-request-duration: 2_000 # In millis
+  sync_idle_ttl: 1_000_000 # In millis
+  max-lease-request-duration: 30_000
