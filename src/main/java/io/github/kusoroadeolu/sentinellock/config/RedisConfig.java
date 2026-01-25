@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
-import io.github.kusoroadeolu.sentinellock.entities.ClientId;
+import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import io.github.kusoroadeolu.sentinellock.entities.Lease;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
 import org.jspecify.annotations.NonNull;
@@ -29,24 +29,24 @@ public class RedisConfig extends KeyspaceConfiguration{
 
     //To keep track of synchronizes
     @Bean
-    public RedisTemplate<ClientId, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<ClientId, Synchronizer>();
+    public RedisTemplate<SyncKey, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        var redisTemplate = new RedisTemplate<SyncKey, Synchronizer>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }
 
     //To keep track of leases
     @Bean
-    public RedisTemplate<ClientId, Lease> leaseTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<ClientId, Lease>();
+    public RedisTemplate<SyncKey, Lease> leaseTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        var redisTemplate = new RedisTemplate<SyncKey, Lease>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }
 
     //To keep track of fencing tokens
     @Bean
-    public RedisTemplate<ClientId, Long> fencingTokenTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<ClientId, Long>();
+    public RedisTemplate<SyncKey, Long> fencingTokenTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        var redisTemplate = new RedisTemplate<SyncKey, Long>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }

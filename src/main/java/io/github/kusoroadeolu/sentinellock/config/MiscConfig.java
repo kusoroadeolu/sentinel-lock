@@ -1,6 +1,6 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
-import io.github.kusoroadeolu.sentinellock.entities.ClientId;
+import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +16,7 @@ import static java.lang.Thread.ofVirtual;
 public class MiscConfig {
 
     @Bean
-    public Map<ClientId, BlockingQueue<PendingRequest>> map(){
+    public Map<SyncKey, BlockingQueue<PendingRequest>> map(){
         return new ConcurrentHashMap<>();
     }
 
