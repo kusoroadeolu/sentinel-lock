@@ -43,7 +43,7 @@ public class RedisExpiryHandler {
             if (opt.isPresent()){
                 var p = opt.get();
                 this.requestQueue.remove(p);
-                this.registry.ask(p.request());
+                this.registry.tryAcquireOrQueue(p.request(), p.future());
             }
         }
     }

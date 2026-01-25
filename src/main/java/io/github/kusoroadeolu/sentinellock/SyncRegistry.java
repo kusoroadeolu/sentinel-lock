@@ -3,6 +3,8 @@ package io.github.kusoroadeolu.sentinellock;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLeaseResponse;
+import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.FailedLeaseResponse;
+import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.WaitingLeaseResponse;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import io.github.kusoroadeolu.sentinellock.utils.Constants;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +20,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased.LEASED;
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Conflict.CONFLICT;
@@ -34,10 +39,8 @@ public class SyncRegistry {
     private final SentinelLockConfigProperties configProperties;
 
     public @NonNull LeaseResponse ask(@NonNull PendingRequest request) throws ExecutionException, TimeoutException, InterruptedException { //Users should probably wait until they acquire the lock, so we need a way to make them wait
-        final var future = new CompletableFuture<>();
+        final var future = new CompletableFuture<CompletedLeaseResponse>();
         final var syncKey = request.syncKey();
-        final var key = syncKey.key();
-        final var clientId = request.id();
 
         final var syncTtl = this.configProperties.syncIdleTtl();
         final var syncOps = this.synchronizerTemplate.opsForValue();
@@ -45,20 +48,19 @@ public class SyncRegistry {
 
         //TODO check if the lease duration is longer than the sync duration
 
-
         final var res = this.tryAcquireOrQueue(request, future);
-        if (res instanceof LeaseResult.Success(var lease)){
-            return new CompletedLeaseResponse(lease.fencingToken());
+        if (res instanceof LeaseResult.Success(var clr)){
+            return clr;
         }else if (res instanceof LeaseResult.AlreadyLeased){
             future.get(request.requestedLeaseDuration(), TimeUnit.MILLISECONDS);
-            return new LeaseResponse.WaitingLeaseResponse(future);
+            return new WaitingLeaseResponse(future);
         }else {
-            return LeaseResponse.FailedLeaseResponse.FAILED;
+            return FailedLeaseResponse.FAILED;
         }
     }
 
     @Retryable(includes = LeaseConflictException.class, jitter = 2)
-    public LeaseResult tryAcquireOrQueue(PendingRequest request, CompletableFuture<?> future){
+    public LeaseResult tryAcquireOrQueue(PendingRequest request, CompletableFuture<CompletedLeaseResponse> future){
         final var syncKey = request.syncKey();
         final var key = syncKey.key();
         final var clientId = request.id();
@@ -69,7 +71,10 @@ public class SyncRegistry {
             case LeaseResult.AlreadyLeased _ -> this.requestQueue.offer(request, future);
 
             //TODO handle case in which offer returns false
-            case LeaseResult.Success _ -> log.info("Successfully leased key: {} to client: {}", key, clientId);
+            case LeaseResult.Success s -> {
+                log.info("Successfully leased key: {} to client: {}", key, clientId);
+                future.complete(s.lrp());
+            }
             case LeaseResult.Conflict _ -> throw new LeaseConflictException();
             case LeaseResult.TransactionError _ -> {} //TODO handle transaction errors
         }
@@ -93,15 +98,15 @@ public class SyncRegistry {
 
                 ops.multi();
                 try {
-                    final var ft = fencingTokenTemplate.opsForValue().increment(key);
+                    final var ftk = fencingTokenTemplate.opsForValue().increment(key);
                     final var now = Instant.now();
-                    final var lease = new Lease(ft, id, syncKey, now, now.plusMillis(leaseDuration), leaseDuration);
+                    final var lease = new Lease(ftk, id, syncKey, now, now.plusMillis(leaseDuration), leaseDuration);
                     ops.expire(key, Duration.ofMillis(leaseDuration));
                     ops.opsForValue().set(key, lease, Duration.ofMillis(leaseDuration));
 
                     final var res = ops.exec();
                     if (res.isEmpty()) return CONFLICT;
-                    else return new LeaseResult.Success(lease);
+                    else return new LeaseResult.Success(new CompletedLeaseResponse(ftk));
                 }catch (DataAccessException e){
                     ops.discard();
                     log.error("An error occurred while trying to perform redis transaction for key: {}", key, e);
@@ -140,6 +145,6 @@ public class SyncRegistry {
 
         record TransactionError(Exception e) implements LeaseResult{}
 
-        record Success(Lease lease) implements LeaseResult{} //represents if this sync is unleased
+        record Success(CompletedLeaseResponse lrp) implements LeaseResult{} //represents if this sync is unleased
     }
 }

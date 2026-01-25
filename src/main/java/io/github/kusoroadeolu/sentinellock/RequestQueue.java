@@ -1,6 +1,7 @@
 package io.github.kusoroadeolu.sentinellock;
 
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
+import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse;
 import io.github.kusoroadeolu.sentinellock.entities.QueuedPendingRequest;
 import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
@@ -21,10 +22,10 @@ public class RequestQueue {
     private final ScheduledExecutorService scheduledExecutorService;
 
 
-    public boolean offer(@NonNull PendingRequest request, CompletableFuture<?> future){
+    public boolean offer(@NonNull PendingRequest request, CompletableFuture<LeaseResponse.CompletedLeaseResponse> future){
        final var key = request.syncKey().key();
        final var queue =
-               this.map.computeIfAbsent(key , (_) -> new LinkedBlockingQueue<>(sentinelLockConfigProperties.maxQueuedRegistryClients()));
+               this.map.computeIfAbsent(key , (_) -> new LinkedBlockingQueue<>(this.sentinelLockConfigProperties.maxQueuedRegistryClients()));
        final var qpr = new QueuedPendingRequest(request, future);
        final var qd = qpr.request().queueDuration();
        var scheduled = this.scheduledExecutorService.schedule(() -> this.remove(qpr), qd, TimeUnit.MILLISECONDS);

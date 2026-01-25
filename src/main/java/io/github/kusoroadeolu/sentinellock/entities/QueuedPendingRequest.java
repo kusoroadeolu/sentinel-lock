@@ -1,6 +1,7 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
 
+import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLeaseResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
@@ -11,7 +12,7 @@ import java.util.concurrent.ScheduledFuture;
 @RequiredArgsConstructor
 public class QueuedPendingRequest {
     final PendingRequest request;
-    final CompletableFuture<?> future;
+    final CompletableFuture<CompletedLeaseResponse> future;
     @Setter
     ScheduledFuture<?> scheduled;
 
@@ -23,12 +24,11 @@ public class QueuedPendingRequest {
         return this.scheduled;
     }
 
-    public CompletableFuture<?> future() {
+    public CompletableFuture<CompletedLeaseResponse> future() {
         return future;
     }
 
     public void cancelAndCompleteFuture(){
-        this.future.complete(null);
         this.scheduled.cancel(true);
     }
 }
