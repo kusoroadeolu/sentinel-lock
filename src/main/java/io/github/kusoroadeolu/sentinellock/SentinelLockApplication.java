@@ -6,7 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
-@ConfigurationPropertiesScan public class SentinelLockApplication {
+@ConfigurationPropertiesScan
+public class SentinelLockApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(SentinelLockApplication.class, args);

@@ -5,7 +5,5 @@ import lombok.NonNull;
 import java.time.Instant;
 
 //Lease duration is in millis
-public record PendingRequest(@NonNull ClientId id, @NonNull SyncKey syncKey ,long requestedLeaseDuration, @NonNull Instant queuedAt) {
-    public PendingRequest{
-    }
+public record PendingRequest(@NonNull ClientId id, @NonNull SyncKey syncKey ,long requestedLeaseDuration, long queueDuration) {
 }

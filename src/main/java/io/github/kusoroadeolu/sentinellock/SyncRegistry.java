@@ -12,7 +12,6 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static java.util.Objects.requireNonNull;
 
@@ -20,27 +19,28 @@ import static java.util.Objects.requireNonNull;
 @Slf4j
 @RequiredArgsConstructor
 public class SyncRegistry {
-    private final ClientMap clientMap;
-    private final RedisTemplate<SyncKey, Synchronizer> synchronizerTemplate;
-    private final RedisTemplate<SyncKey, Lease> leaseTemplate;
-    private final RedisTemplate<SyncKey, Long> fencingTokenTemplate;
-    //private final ScheduledExecutorService scheduledExecutorService;
+    private final RequestQueue requestQueue;
+    private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
+    private final RedisTemplate<String, Lease> leaseTemplate;
+    private final RedisTemplate<String, Long> fencingTokenTemplate;
     private final SentinelLockConfigProperties configProperties;
 
     public LeaseResponse ask(@NonNull PendingRequest request){ //Users should probably wait until they acquire the lock, so we need a way to make them wait
-        final var key = request.syncKey();
+        final var syncKey = request.syncKey();
+        final var key = syncKey.key();
+
         final var syncTtl = this.configProperties.syncIdleTtl();
         final var syncOps = this.synchronizerTemplate.opsForValue();
-        final var sync = this.getSynchronizer(key, syncTtl, syncOps);
+        final var sync = this.getSynchronizer(syncKey, syncTtl, syncOps);
 
-        long leaseDur = request.requestedLeaseDuration();
+        final var leaseDur = request.requestedLeaseDuration();
         //TODO check if the lease duration is longer than the sync duration
 
-        var leaseResult = requireNonNull(sync)
+        final var leaseResult = requireNonNull(sync)
                 .newLease(leaseDur, request.id());
 
         switch (leaseResult){
-            case AlreadyLeased _ -> this.clientMap.offer(request); //TODO handle case in which offer returns false
+            case AlreadyLeased _ -> this.requestQueue.offer(request); //TODO handle case in which offer returns false
             case Success s -> {
                 var lease = s.lease();
                 lease.setFencingToken(this.fencingTokenTemplate.opsForValue().increment(key));
@@ -49,15 +49,15 @@ public class SyncRegistry {
             }
         }
 
-
     }
 
 
-    Synchronizer getSynchronizer(SyncKey key, long syncTtl,ValueOperations<SyncKey, Synchronizer> syncOps){
+    Synchronizer getSynchronizer(SyncKey syncKey, long syncTtl,ValueOperations<String, Synchronizer> syncOps){
+        final var key = syncKey.key();
         var sync = syncOps.get(key);
 
         if (sync == null) {
-            var newSync = new Synchronizer(key);
+            var newSync = new Synchronizer(syncKey);
             if (syncOps.setIfAbsent(key, newSync, Duration.ofMillis(syncTtl))) {
                 sync = newSync;
             } else {

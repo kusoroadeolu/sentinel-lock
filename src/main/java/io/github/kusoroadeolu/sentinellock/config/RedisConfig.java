@@ -3,6 +3,7 @@ package io.github.kusoroadeolu.sentinellock.config;
 import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import io.github.kusoroadeolu.sentinellock.entities.Lease;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
+import io.github.kusoroadeolu.sentinellock.utils.Constants;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,8 +15,10 @@ import org.springframework.data.redis.core.convert.KeyspaceConfiguration;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.Collections;
+import java.util.ArrayList;
 
+
+import static io.github.kusoroadeolu.sentinellock.utils.Constants.*;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.modifyRedisTemplate;
 
 @Configuration
@@ -29,24 +32,24 @@ public class RedisConfig extends KeyspaceConfiguration{
 
     //To keep track of synchronizes
     @Bean
-    public RedisTemplate<SyncKey, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<SyncKey, Synchronizer>();
+    public RedisTemplate<String, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisTemplate = new RedisTemplate<String, Synchronizer>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }
 
     //To keep track of leases
     @Bean
-    public RedisTemplate<SyncKey, Lease> leaseTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<SyncKey, Lease>();
+    public RedisTemplate<String, Lease> leaseTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisTemplate = new RedisTemplate<String, Lease>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }
 
     //To keep track of fencing tokens
     @Bean
-    public RedisTemplate<SyncKey, Long> fencingTokenTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        var redisTemplate = new RedisTemplate<SyncKey, Long>();
+    public RedisTemplate<String, Long> fencingTokenTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisTemplate = new RedisTemplate<String, Long>();
         modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
         return redisTemplate;
     }
@@ -56,8 +59,13 @@ public class RedisConfig extends KeyspaceConfiguration{
         @Override
         @NonNull
         protected Iterable<KeyspaceSettings> initialConfiguration() {
-            return Collections.singleton(new KeyspaceSettings(Synchronizer.class, "sync"));
+            var settings  = new ArrayList<KeyspaceSettings>();
+            settings.add(new KeyspaceSettings(Synchronizer.class, SYNC_PREFIX));
+            settings.add(new KeyspaceSettings(Lease.class, LEASE_PREFIX));
+            settings.add(new KeyspaceSettings(Long.class, FT_PREFIX)); //Fencing Token
+            return settings;
         }
+
     }
 
 
