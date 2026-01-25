@@ -11,10 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 @Component
 @RequiredArgsConstructor
@@ -24,11 +21,11 @@ public class RequestQueue {
     private final ScheduledExecutorService scheduledExecutorService;
 
 
-    public boolean offer(@NonNull PendingRequest request){
+    public boolean offer(@NonNull PendingRequest request, CompletableFuture<?> future){
        final var key = request.syncKey().key();
        final var queue =
                this.map.computeIfAbsent(key , (_) -> new LinkedBlockingQueue<>(sentinelLockConfigProperties.maxQueuedRegistryClients()));
-       final var qpr = new QueuedPendingRequest(request);
+       final var qpr = new QueuedPendingRequest(request, future);
        final var qd = qpr.request().queueDuration();
        var scheduled = this.scheduledExecutorService.schedule(() -> this.remove(qpr), qd, TimeUnit.MILLISECONDS);
        qpr.setScheduled(scheduled);
