@@ -8,8 +8,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class Lease{
 
-    @Setter
-    long fencingToken;
+    final long fencingToken;
     final ClientId leasedTo;
     final SyncKey key;
     final Instant leasedAt;

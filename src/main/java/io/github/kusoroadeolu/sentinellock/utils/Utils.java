@@ -1,6 +1,5 @@
 package io.github.kusoroadeolu.sentinellock.utils;
 
-import jdk.jshell.execution.Util;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;

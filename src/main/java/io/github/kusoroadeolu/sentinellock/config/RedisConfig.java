@@ -1,9 +1,7 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
-import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import io.github.kusoroadeolu.sentinellock.entities.Lease;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
-import io.github.kusoroadeolu.sentinellock.utils.Constants;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +14,6 @@ import org.springframework.data.redis.repository.configuration.EnableRedisReposi
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
-
 
 import static io.github.kusoroadeolu.sentinellock.utils.Constants.*;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.modifyRedisTemplate;

@@ -16,7 +16,7 @@ import static java.lang.Thread.ofVirtual;
 public class MiscConfig {
 
     @Bean
-    public Map<SyncKey, BlockingQueue<QueuedPendingRequest>> map(){
+    public Map<String, BlockingQueue<QueuedPendingRequest>> map(){
         return new ConcurrentHashMap<>();
     }
 
