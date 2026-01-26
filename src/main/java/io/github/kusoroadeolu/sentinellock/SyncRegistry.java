@@ -1,5 +1,7 @@
 package io.github.kusoroadeolu.sentinellock;
 
+import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased;
+import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLeaseResponse;
@@ -33,27 +35,23 @@ import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Confl
 @RequiredArgsConstructor
 public class SyncRegistry {
     private final RequestQueue requestQueue;
+    private final RedisTemplate<String, LeaseState> lockStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
-    private final RedisTemplate<String, Lease> leaseTemplate;
-    private final RedisTemplate<String, Long> fencingTokenTemplate;
     private final SentinelLockConfigProperties configProperties;
 
-    public @NonNull LeaseResponse ask(@NonNull PendingRequest request) throws ExecutionException, TimeoutException, InterruptedException { //Users should probably wait until they acquire the lock, so we need a way to make them wait
+    public @NonNull LeaseResponse ask(@NonNull PendingRequest request) throws ExecutionException,  InterruptedException { //Users should probably wait until they acquire the lock, so we need a way to make them wait
         final var future = new CompletableFuture<CompletedLeaseResponse>();
-        final var syncKey = request.syncKey();
-
-        final var syncTtl = this.configProperties.syncIdleTtl();
-        final var syncOps = this.synchronizerTemplate.opsForValue();
-        final var sync = this.getSynchronizer(syncKey, syncTtl, syncOps);
-
-        //TODO check if the lease duration is longer than the sync duration
+        this.createSynchronizerIfAbsent(request.syncKey(), this.configProperties.syncIdleTtl(), this.synchronizerTemplate.opsForValue());
 
         final var res = this.tryAcquireOrQueue(request, future);
-        if (res instanceof LeaseResult.Success(var clr)){
-            return clr;
-        }else if (res instanceof LeaseResult.AlreadyLeased){
-            future.get(request.requestedLeaseDuration(), TimeUnit.MILLISECONDS);
-            return new WaitingLeaseResponse(future);
+        if (res instanceof Success(var clr)) return clr;
+        else if (res instanceof AlreadyLeased){
+            try {
+                future.get(request.requestedLeaseDuration(), TimeUnit.MILLISECONDS);
+                return new WaitingLeaseResponse(future);
+            }catch (TimeoutException e){
+                return new WaitingLeaseResponse(future);  //Represents the future timed out
+            }
         }else {
             return FailedLeaseResponse.FAILED;
         }
@@ -68,10 +66,10 @@ public class SyncRegistry {
 
         final var leaseResult = this.createLease(syncKey, leaseDuration, clientId);
          switch (leaseResult){
-            case LeaseResult.AlreadyLeased _ -> this.requestQueue.offer(request, future);
+            case AlreadyLeased _ -> this.requestQueue.offer(request, future);
 
             //TODO handle case in which offer returns false
-            case LeaseResult.Success s -> {
+            case Success s -> {
                 log.info("Successfully leased key: {} to client: {}", key, clientId);
                 future.complete(s.lrp());
             }
@@ -85,28 +83,40 @@ public class SyncRegistry {
     @SuppressWarnings("unchecked")
     LeaseResult createLease(SyncKey syncKey, long leaseDuration, ClientId id) {
         final var key = syncKey.key();
-        final var redisOps = this.leaseTemplate.opsForValue().getOperations();
+        final var redisOps = this.lockStateTemplate.opsForValue().getOperations();
+
 
         return redisOps.execute(new SessionCallback<>() {
             public LeaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
-                ops.watch(Constants.LEASE_PREFIX);
-                var currLease = (Lease) ops.opsForValue().get(key);
-                if (currLease != null && !currLease.isExpired()) {
+                ops.watch(Constants.LS_PREFIX);
+                final var currState = (LeaseState) ops.opsForValue().get(key);
+                final var sync = synchronizerTemplate.opsForValue().get(key);
+                final var nextToken = sync.leaseCount() + 1; //sync can never be null
+                if (currState != null && !currState.isAvailable()) {
                     ops.unwatch();
                     return LEASED;
                 }
 
                 ops.multi();
                 try {
-                    final var ftk = fencingTokenTemplate.opsForValue().increment(key);
+                    log.info("Next token: {}", nextToken);
                     final var now = Instant.now();
-                    final var lease = new Lease(ftk, id, syncKey, now, now.plusMillis(leaseDuration), leaseDuration);
+                    final var lockState = new LeaseState(syncKey, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
                     ops.expire(key, Duration.ofMillis(leaseDuration));
-                    ops.opsForValue().set(key, lease, Duration.ofMillis(leaseDuration));
+                    ops.opsForValue().set(key, lockState, Duration.ofMillis(leaseDuration));
 
                     final var res = ops.exec();
-                    if (res.isEmpty()) return CONFLICT;
-                    else return new LeaseResult.Success(new CompletedLeaseResponse(ftk));
+                    if (res.isEmpty()) {
+                        ops.discard();
+                        log.info("Res is empty for client: {}", id);
+                        return CONFLICT;
+                    }
+
+                    else {
+                        synchronizerTemplate.opsForValue().set(key, new Synchronizer(nextToken));
+                        log.info("Sync template new value: {}", synchronizerTemplate.opsForValue().get(key));
+                        return new Success(new CompletedLeaseResponse(syncKey, nextToken));
+                    }
                 }catch (DataAccessException e){
                     ops.discard();
                     log.error("An error occurred while trying to perform redis transaction for key: {}", key, e);
@@ -116,25 +126,22 @@ public class SyncRegistry {
         });
     }
 
-
-    Synchronizer getSynchronizer(SyncKey syncKey, long syncTtl,ValueOperations<String, Synchronizer> syncOps){
+    void createSynchronizerIfAbsent(SyncKey syncKey, long syncTtl, ValueOperations<String, Synchronizer> syncOps){
         final var key = syncKey.key();
         var sync = syncOps.get(key);
+        log.info("Sync: {}", sync);
 
         if (sync == null) {
-            var newSync = new Synchronizer(syncKey);
-            if (syncOps.setIfAbsent(key, newSync, Duration.ofMillis(syncTtl))) {
-                sync = newSync;
-            } else {
-                sync = syncOps.get(key);
-            }
+            sync = new Synchronizer(0L);
+             syncOps.setIfAbsent(key, sync, Duration.ofMillis(syncTtl));
         }
 
+        log.info("Set sync: {}", sync);
+
         this.synchronizerTemplate.expire(key, Duration.ofMillis(syncTtl));
-        return sync;
     }
 
-    public sealed interface LeaseResult permits LeaseResult.AlreadyLeased, LeaseResult.Success, LeaseResult.TransactionError, LeaseResult.Conflict {
+    public sealed interface LeaseResult permits AlreadyLeased, Success, LeaseResult.TransactionError, LeaseResult.Conflict {
         enum AlreadyLeased implements LeaseResult{  //represents if this sync is currently leased
             LEASED
         }

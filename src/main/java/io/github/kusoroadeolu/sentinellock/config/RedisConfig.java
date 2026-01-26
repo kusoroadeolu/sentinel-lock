@@ -1,7 +1,8 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
-import io.github.kusoroadeolu.sentinellock.entities.Lease;
+import io.github.kusoroadeolu.sentinellock.entities.LeaseState;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
+import io.github.kusoroadeolu.sentinellock.utils.Utils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,12 +12,14 @@ import org.springframework.data.redis.core.RedisKeyValueAdapter;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.convert.KeyspaceConfiguration;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
+import org.springframework.data.redis.serializer.JacksonJsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 
-import static io.github.kusoroadeolu.sentinellock.utils.Constants.*;
-import static io.github.kusoroadeolu.sentinellock.utils.Utils.modifyRedisTemplate;
+import static io.github.kusoroadeolu.sentinellock.utils.Constants.LS_PREFIX;
+import static io.github.kusoroadeolu.sentinellock.utils.Constants.SYNC_PREFIX;
 
 @Configuration
 @EnableRedisRepositories(keyspaceConfiguration = RedisConfig.MyKeyspaceConfig.class, enableKeyspaceEvents = RedisKeyValueAdapter.EnableKeyspaceEvents.ON_STARTUP)
@@ -27,39 +30,44 @@ public class RedisConfig extends KeyspaceConfiguration{
         return new LettuceConnectionFactory();
     }
 
-    //To keep track of synchronizes
     @Bean
     public RedisTemplate<String, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisSerializer = new JacksonJsonRedisSerializer<>(Synchronizer.class);
         final var redisTemplate = new RedisTemplate<String, Synchronizer>();
-        modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(redisSerializer);
+        redisTemplate.setHashValueSerializer(redisSerializer);
+        redisTemplate.afterPropertiesSet();
         return redisTemplate;
     }
+
 
     //To keep track of leases
     @Bean
-    public RedisTemplate<String, Lease> leaseTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        final var redisTemplate = new RedisTemplate<String, Lease>();
-        modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
+    public RedisTemplate<String, LeaseState> lockStateTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisSerializer = new JacksonJsonRedisSerializer<>(LeaseState.class);
+        final var redisTemplate = new RedisTemplate<String, LeaseState>();
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(redisSerializer);
+        redisTemplate.setHashValueSerializer(redisSerializer);
+        redisTemplate.afterPropertiesSet();
         return redisTemplate;
     }
 
-    //To keep track of fencing tokens
-    @Bean
-    public RedisTemplate<String, Long> fencingTokenTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        final var redisTemplate = new RedisTemplate<String, Long>();
-        modifyRedisTemplate(redisTemplate, redisConnectionFactory, objectMapper);
-        return redisTemplate;
-    }
+
 
     public static class MyKeyspaceConfig extends KeyspaceConfiguration {
 
         @Override
         @NonNull
         protected Iterable<KeyspaceSettings> initialConfiguration() {
-            var settings  = new ArrayList<KeyspaceSettings>();
+            final var settings  = new ArrayList<KeyspaceSettings>();
             settings.add(new KeyspaceSettings(Synchronizer.class, SYNC_PREFIX));
-            settings.add(new KeyspaceSettings(Lease.class, LEASE_PREFIX));
-            settings.add(new KeyspaceSettings(Long.class, FT_PREFIX)); //Fencing Token
+            settings.add(new KeyspaceSettings(LeaseState.class, LS_PREFIX)); //lock state
             return settings;
         }
 

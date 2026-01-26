@@ -9,7 +9,7 @@ import tools.jackson.databind.ObjectMapper;
 public class Utils {
     private Utils(){}
 
-    public static void modifyRedisTemplate(RedisTemplate<?, ?> redisTemplate, RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+    public static void modifyRedisTemplate(RedisTemplate<?, ?> redisTemplate, RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper, Class<?> clazz){
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(new StringRedisSerializer());
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());

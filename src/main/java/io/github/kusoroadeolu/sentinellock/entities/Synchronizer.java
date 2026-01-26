@@ -1,4 +1,9 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
-public record Synchronizer(SyncKey key) {
+//A dummy class that we basically use to manage the idle lifecycle of lock state
+public record Synchronizer(Long leaseCount) {
+
+    public Synchronizer{
+        if (leaseCount == null) leaseCount = 0L;
+    }
 }

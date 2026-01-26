@@ -29,8 +29,6 @@ public class MiscConfig {
         return Executors.newScheduledThreadPool(50, ofVirtual().factory());
     }
 
-    @Bean(destroyMethod = "shutdown")
-
     public Executor leaseThreadPool(){
         return Executors.newVirtualThreadPerTaskExecutor();
     }

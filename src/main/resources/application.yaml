@@ -8,6 +8,7 @@ spring:
     server:
       port: 9090
 
+
 sentinel-lock:
   max-queued-registry-clients: 50
   min-lease-request-duration: 2_000 # In millis
