@@ -17,17 +17,13 @@ public record LeaseState(
     }
 
     public boolean isExpired() {
-        return Instant.now().isAfter(expiresAt);
-    }
-
-    public boolean isAvailable() {
-        return currentHolder == null || isExpired();
+        return Instant.now().isAfter(this.expiresAt);
     }
 
     public LeaseState withNewLease(ClientId newHolder, long duration, long newToken) {
         Instant now = Instant.now();
         return new LeaseState(
-                syncKey,
+                this.syncKey,
                 newHolder,
                 newToken,
                 now,

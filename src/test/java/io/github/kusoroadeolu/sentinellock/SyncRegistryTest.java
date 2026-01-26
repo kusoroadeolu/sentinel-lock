@@ -4,12 +4,10 @@ import io.github.kusoroadeolu.sentinellock.entities.ClientId;
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
 import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
-import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -74,7 +72,7 @@ class SyncRegistryTest {
 
     @Test
     public void shouldIncrementFencingToken_onSuccessiveLeases()
-            throws ExecutionException, InterruptedException {
+            throws  InterruptedException {
         SyncKey syncKey = new SyncKey("resource-4");
 
         PendingRequest request1 = new PendingRequest(
@@ -92,6 +90,28 @@ class SyncRegistryTest {
                 (LeaseResponse.CompletedLeaseResponse) syncRegistry.ask(request2);
 
         assertTrue(response2.fencingToken() > response1.fencingToken());
+    }
+
+
+    @Test
+    public void onWait_shouldReturnWaitingLeaseResponse()  {
+        SyncKey syncKey = new SyncKey("resource-5");
+
+        PendingRequest request1 = new PendingRequest(
+                new ClientId("client-1"), syncKey, 5000, 1000
+        );
+        LeaseResponse.CompletedLeaseResponse response1 =
+                (LeaseResponse.CompletedLeaseResponse) syncRegistry.ask(request1);
+
+        assertInstanceOf(LeaseResponse.CompletedLeaseResponse.class, response1);
+
+        PendingRequest request2 = new PendingRequest(
+                new ClientId("client-2"), syncKey, 1000, 3000
+        );
+
+        LeaseResponse response2 = syncRegistry.ask(request2);
+
+        assertInstanceOf(LeaseResponse.WaitingLeaseResponse.class, response2);
     }
 
 }

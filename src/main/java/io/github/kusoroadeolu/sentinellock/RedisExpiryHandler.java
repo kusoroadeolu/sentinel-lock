@@ -18,7 +18,7 @@ import static io.github.kusoroadeolu.sentinellock.utils.Constants.SYNC_PREFIX;
 @Slf4j
 @RequiredArgsConstructor
 public class RedisExpiryHandler {
-    //FLOW: Ask -> Try acquire -> Fail -> Queue -> Trigger event -> Poll -> Retry asking till lease acquire
+    //FLOW: Ask -> Try acquire -> Fail -> Queue -> Trigger event -> Poll -> Retry asking till lease acquire | Timeout
     private final RedisTemplate<String, LeaseState> lockStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final RequestQueue requestQueue;
