@@ -1,9 +1,6 @@
 package io.github.kusoroadeolu.sentinellock;
 
-import io.github.kusoroadeolu.sentinellock.entities.ClientId;
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse;
-import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
-import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
+import io.github.kusoroadeolu.sentinellock.entities.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.concurrent.ExecutionException;
 
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 //Test the normal flow, acquire -> success
 //Test when a sync is already leased, then released, result should be I get a CompletedLeaseResponse
@@ -31,8 +27,9 @@ class SyncRegistryTest {
         SyncKey syncKey = new SyncKey("resource-1");
 
         PendingRequest request = new PendingRequest(id, syncKey, 2000, 4000);
-        LeaseResponse response = syncRegistry.ask(request);
-        assertInstanceOf(LeaseResponse.CompletedLeaseResponse.class, response);
+        CompletableLease future = new CompletableLease();
+        syncRegistry.ask(request, future);
+        assertEquals(CompletableLease.Status.ACQUIRED, future.getStatus());
     }
 
     @Test
@@ -40,15 +37,15 @@ class SyncRegistryTest {
         SyncKey syncKey = new SyncKey("resource-2");
         ClientId client1 = new ClientId("client-1");
         ClientId client2 = new ClientId("client-2");
-
+        CompletableLease future = new CompletableLease();
         PendingRequest request1 = new PendingRequest(client1, syncKey, 3000, 5000);
-        LeaseResponse response1 = syncRegistry.ask(request1);
-        assertInstanceOf(LeaseResponse.CompletedLeaseResponse.class, response1);
+        syncRegistry.ask(request1, future);
+        assertEquals(CompletableLease.Status.ACQUIRED, future.getStatus());
 
+        CompletableLease future1 = new CompletableLease();
         PendingRequest request2 = new PendingRequest(client2, syncKey, 500, 1000);
-        LeaseResponse response2 = syncRegistry.ask(request2);
-
-        assertInstanceOf(LeaseResponse.WaitingLeaseResponse.class, response2);
+        syncRegistry.ask(request2, future1);
+        assertEquals(CompletableLease.Status.WAITING, future1.getStatus());
     }
 
     @Test
@@ -59,16 +56,18 @@ class SyncRegistryTest {
         ClientId client2 = new ClientId("client-2");
 
         // Client 1 acquires with short lease
+        CompletableLease future1 = new CompletableLease();
         PendingRequest request1 = new PendingRequest(client1, syncKey, 500, 1000);
-        syncRegistry.ask(request1);
+        syncRegistry.ask(request1, future1);
 
         // Wait for lease to expire
         Thread.sleep(600);
 
+        CompletableLease future2 = new CompletableLease();
         PendingRequest request2 = new PendingRequest(client2, syncKey, 2000, 4000);
-        LeaseResponse response2 = syncRegistry.ask(request2);
+        syncRegistry.ask(request2, future2);
 
-        assertInstanceOf(LeaseResponse.CompletedLeaseResponse.class, response2);
+        assertEquals(CompletableLease.Status.ACQUIRED, future2.getStatus());
     }
 
     @Test
@@ -79,41 +78,22 @@ class SyncRegistryTest {
         PendingRequest request1 = new PendingRequest(
                 new ClientId("client-1"), syncKey, 100, 500
         );
-        LeaseResponse.CompletedLeaseResponse response1 =
-                (LeaseResponse.CompletedLeaseResponse) syncRegistry.ask(request1);
+
+        CompletableLease future1 = new CompletableLease();
+        syncRegistry.ask(request1, future1);
 
         Thread.sleep(150);
 
+        CompletableLease future2 = new CompletableLease();
         PendingRequest request2 = new PendingRequest(
                 new ClientId("client-2"), syncKey, 100, 500
         );
-        LeaseResponse.CompletedLeaseResponse response2 =
-                (LeaseResponse.CompletedLeaseResponse) syncRegistry.ask(request2);
-
-        assertTrue(response2.fencingToken() > response1.fencingToken());
+        syncRegistry.ask(request2, future2);
+        Lease.CompleteLease l1 = future1.join().asCompleteLease();
+        Lease.CompleteLease l2 =  future2.join().asCompleteLease();
+        assertTrue(l2.fencingToken() > l1.fencingToken());
     }
 
-
-    @Test
-    public void onWait_shouldReturnWaitingLeaseResponse()  {
-        SyncKey syncKey = new SyncKey("resource-5");
-
-        PendingRequest request1 = new PendingRequest(
-                new ClientId("client-1"), syncKey, 5000, 1000
-        );
-        LeaseResponse.CompletedLeaseResponse response1 =
-                (LeaseResponse.CompletedLeaseResponse) syncRegistry.ask(request1);
-
-        assertInstanceOf(LeaseResponse.CompletedLeaseResponse.class, response1);
-
-        PendingRequest request2 = new PendingRequest(
-                new ClientId("client-2"), syncKey, 1000, 3000
-        );
-
-        LeaseResponse response2 = syncRegistry.ask(request2);
-
-        assertInstanceOf(LeaseResponse.WaitingLeaseResponse.class, response2);
-    }
 
 
 }

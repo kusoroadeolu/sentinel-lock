@@ -12,7 +12,7 @@ import java.util.concurrent.ScheduledFuture;
 @RequiredArgsConstructor
 public class QueuedPendingRequest {
     final PendingRequest request;
-    final CompletableFuture<CompletedLeaseResponse> future;
+    final CompletableLease future;
     @Setter
     ScheduledFuture<?> scheduled;
 
@@ -24,7 +24,7 @@ public class QueuedPendingRequest {
         return this.scheduled;
     }
 
-    public CompletableFuture<CompletedLeaseResponse> future() {
+    public CompletableLease future() {
         return future;
     }
 

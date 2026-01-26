@@ -1,11 +1,9 @@
 package io.github.kusoroadeolu.sentinellock;
 
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse;
-import io.github.kusoroadeolu.sentinellock.entities.QueuedPendingRequest;
-import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
-import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
+import io.github.kusoroadeolu.sentinellock.entities.*;
 
+import io.github.kusoroadeolu.sentinellock.entities.Lease.TimedOutLease;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
@@ -13,6 +11,9 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
+
+import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.*;
+import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
 
 @Component
 @RequiredArgsConstructor
@@ -22,13 +23,16 @@ public class RequestQueue {
     private final ScheduledExecutorService scheduledExecutorService;
 
 
-    public boolean offer(@NonNull PendingRequest request, CompletableFuture<LeaseResponse.CompletedLeaseResponse> future){
+    public boolean offer(@NonNull PendingRequest request, CompletableLease future){
        final var key = request.syncKey().key();
        final var queue =
                this.map.computeIfAbsent(key , (_) -> new LinkedBlockingQueue<>(this.sentinelLockConfigProperties.maxQueuedRegistryClients()));
        final var qpr = new QueuedPendingRequest(request, future);
        final var qd = qpr.request().queueDuration();
-       var scheduled = this.scheduledExecutorService.schedule(() -> this.remove(qpr), qd, TimeUnit.MILLISECONDS);
+       final var scheduled = this.scheduledExecutorService.schedule(() -> {
+           this.remove(qpr);
+           future.completeExceptionally(new TimedOutLease(), TIMED_OUT); //Future timed out waiting
+       }, qd, TimeUnit.MILLISECONDS);
        qpr.setScheduled(scheduled);
        return queue.offer(qpr);
     }

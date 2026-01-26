@@ -4,9 +4,7 @@ import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLease
 import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLeaseResponse;
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.FailedLeaseResponse;
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.WaitingLeaseResponse;
+import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,10 +18,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
 
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased.LEASED;
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Conflict.CONFLICT;
+import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.*;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.*;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.*;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
 
@@ -36,17 +37,12 @@ public class SyncRegistry {
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final SentinelLockConfigProperties configProperties;
 
-    public @NonNull LeaseResponse ask(@NonNull PendingRequest request) { //Users should probably wait until they acquire the lock, so we need a way to make them wait
-        final var future = new CompletableFuture<CompletedLeaseResponse>();
-        final var res = this.tryAcquireOrQueue(request, future);
-        log.info("Result: {}", res);
-        if (res instanceof Success(var clr)) return clr;
-        else if (res instanceof AlreadyLeased) return new WaitingLeaseResponse(future);
-        else return FailedLeaseResponse.FAILED;
+    public void ask(@NonNull PendingRequest request, CompletableLease future) { //Users should probably wait until they acquire the lock, so we need a way to make them wait
+        this.tryAcquireOrQueue(request, future);
     }
 
     @Retryable(includes = LeaseConflictException.class, jitter = 2)
-    public LeaseResult tryAcquireOrQueue(@NonNull PendingRequest request, @NonNull CompletableFuture<CompletedLeaseResponse> future){
+    public void tryAcquireOrQueue(@NonNull PendingRequest request, @NonNull CompletableLease future){
         final var syncKey = request.syncKey();
         final var key = syncKey.key();
         final var clientId = request.id();
@@ -54,17 +50,18 @@ public class SyncRegistry {
 
         final var leaseResult = this.createLease(syncKey, leaseDuration, clientId);
          switch (leaseResult){
-            case AlreadyLeased _ -> this.requestQueue.offer(request, future);
+            case AlreadyLeased _ -> {
+                 boolean notFull = this.requestQueue.offer(request, future);
+                 if (!notFull) future.completeExceptionally(new FailedLease(QUEUE_FULL), FAILED);
+            }
             //TODO handle case in which offer returns false
             case Success s -> {
                 log.info("Successfully leased key: {} to client: {}", key, clientId);
                 future.complete(s.lrp());
             }
             case LeaseResult.Conflict _ -> throw new LeaseConflictException();
-            case LeaseResult.TransactionError _ -> {} //TODO handle transaction errors
+            case LeaseResult.TransactionError _ -> future.completeExceptionally(new FailedLease(ERR), FAILED); //TODO handle transaction errors
         }
-
-        return leaseResult;
     }
 
     @SuppressWarnings("unchecked")
@@ -102,7 +99,7 @@ public class SyncRegistry {
                         return CONFLICT;
                     } else {
                         synchronizerTemplate.opsForValue().set(appSyncKey, new Synchronizer(nextToken));
-                        return new Success(new CompletedLeaseResponse(syncKey, nextToken));
+                        return new Success(new CompleteLease(syncKey, nextToken));
                     }
                 }catch (DataAccessException e){
                     ops.discard();
@@ -140,6 +137,6 @@ public class SyncRegistry {
 
         record TransactionError(Exception e) implements LeaseResult{}
 
-        record Success(CompletedLeaseResponse lrp) implements LeaseResult{} //represents if this sync is unleased
+        record Success(Lease lrp) implements LeaseResult{} //represents if this sync is unleased
     }
 }
