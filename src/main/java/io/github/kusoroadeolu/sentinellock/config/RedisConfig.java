@@ -2,24 +2,19 @@ package io.github.kusoroadeolu.sentinellock.config;
 
 import io.github.kusoroadeolu.sentinellock.entities.LeaseState;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
-import io.github.kusoroadeolu.sentinellock.utils.Utils;
+import io.github.kusoroadeolu.sentinellock.serializers.LeaseStateSerializer;
+import io.github.kusoroadeolu.sentinellock.serializers.SynchronizerSerializer;
 import org.jspecify.annotations.NonNull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.geo.GeoJacksonModule;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisKeyValueAdapter;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.convert.KeyspaceConfiguration;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
-import org.springframework.data.redis.serializer.JacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-import tools.jackson.databind.DeserializationConfig;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.SerializationFeature;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.util.ArrayList;
 
@@ -37,7 +32,7 @@ public class RedisConfig extends KeyspaceConfiguration{
 
     @Bean
     public RedisTemplate<String, Synchronizer> synchronizerTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        final var redisSerializer = new JacksonJsonRedisSerializer<>(Synchronizer.class);
+        final var redisSerializer = new SynchronizerSerializer(objectMapper);
         final var redisTemplate = new RedisTemplate<String, Synchronizer>();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(new StringRedisSerializer());
@@ -48,11 +43,9 @@ public class RedisConfig extends KeyspaceConfiguration{
         return redisTemplate;
     }
 
-
-    //To keep track of leases
     @Bean
     public RedisTemplate<String, LeaseState> lockStateTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
-        final var redisSerializer = new JacksonJsonRedisSerializer<>(objectMapper, LeaseState.class);
+        final var redisSerializer = new LeaseStateSerializer(objectMapper);
         final var redisTemplate = new RedisTemplate<String, LeaseState>();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(new StringRedisSerializer());
@@ -62,6 +55,9 @@ public class RedisConfig extends KeyspaceConfiguration{
         redisTemplate.afterPropertiesSet();
         return redisTemplate;
     }
+
+
+
 
     public static class MyKeyspaceConfig extends KeyspaceConfiguration {
 

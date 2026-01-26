@@ -9,12 +9,11 @@ import tools.jackson.databind.ObjectMapper;
 public class Utils {
     private Utils(){}
 
-    public static void modifyRedisTemplate(RedisTemplate<?, ?> redisTemplate, RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper, Class<?> clazz){
-        redisTemplate.setConnectionFactory(redisConnectionFactory);
-        redisTemplate.setKeySerializer(new StringRedisSerializer());
-        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
-        redisTemplate.setValueSerializer(new GenericJacksonJsonRedisSerializer(objectMapper));
-        redisTemplate.setHashValueSerializer(new GenericJacksonJsonRedisSerializer(objectMapper));
-        redisTemplate.afterPropertiesSet();
+    public static String appendSyncPrefix(String key){
+        return Constants.SYNC_PREFIX + key;
+    }
+
+    public static String appendLeasePrefix(String key){
+        return Constants.LS_PREFIX + key;
     }
 }

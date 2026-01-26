@@ -4,29 +4,31 @@ import io.github.kusoroadeolu.sentinellock.entities.ClientId;
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
 import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 //Test the normal flow, acquire -> success
 //Test when a sync is already leased, then released, result should be I get a CompletedLeaseResponse
 //Test when a sync is already leased, but we exceed the max wait time, should get a waiting lease response
 // Test when obtaining a sync failed, should get a failed lease response
 @SpringBootTest
+@Slf4j
 class SyncRegistryTest {
 
     @Autowired
     private SyncRegistry syncRegistry;
 
     @Test
-    public void shouldReturnACompletedLeaseResponse_onUnAcquiredLease() throws ExecutionException, InterruptedException, TimeoutException {
-        ClientId id = new ClientId("clId");
-        SyncKey syncKey = new SyncKey("ck");
+    public void shouldReturnACompletedLeaseResponse_onUnAcquiredLease() {
+        ClientId id = new ClientId("client-1");
+        SyncKey syncKey = new SyncKey("resource-1");
 
         PendingRequest request = new PendingRequest(id, syncKey, 2000, 4000);
         LeaseResponse response = syncRegistry.ask(request);
@@ -34,8 +36,7 @@ class SyncRegistryTest {
     }
 
     @Test
-    public void shouldReturnWaitingLeaseResponse_whenResourceAlreadyLeased()
-            throws ExecutionException, InterruptedException {
+    public void shouldReturnWaitingLeaseResponse_whenResourceAlreadyLeased() {
         SyncKey syncKey = new SyncKey("resource-2");
         ClientId client1 = new ClientId("client-1");
         ClientId client2 = new ClientId("client-2");
@@ -113,5 +114,6 @@ class SyncRegistryTest {
 
         assertInstanceOf(LeaseResponse.WaitingLeaseResponse.class, response2);
     }
+
 
 }

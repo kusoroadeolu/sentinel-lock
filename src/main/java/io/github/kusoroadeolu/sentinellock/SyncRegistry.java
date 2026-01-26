@@ -8,7 +8,6 @@ import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLease
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.FailedLeaseResponse;
 import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.WaitingLeaseResponse;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
-import io.github.kusoroadeolu.sentinellock.utils.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -25,7 +24,8 @@ import java.util.concurrent.CompletableFuture;
 
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased.LEASED;
 import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Conflict.CONFLICT;
-import static io.github.kusoroadeolu.sentinellock.utils.Constants.LS_PREFIX;
+import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
+import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
 
 @Service
 @Slf4j
@@ -69,28 +69,31 @@ public class SyncRegistry {
 
     @SuppressWarnings("unchecked")
     LeaseResult createLease(SyncKey syncKey, long leaseDuration, ClientId id) {
-        final var key = syncKey.key();
+        final var rawKey = syncKey.key();
         final var redisOps = this.lockStateTemplate.opsForValue().getOperations();
-
+        final var appSyncKey = appendSyncPrefix(rawKey);
+        final var appLsKey = appendLeasePrefix(rawKey);
 
         return redisOps.execute(new SessionCallback<>() {
             public LeaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
-                ops.watch(LS_PREFIX);
-                final var currState = (LeaseState) ops.opsForValue().get(key);
+                ops.watch(appLsKey);
+                final var currState = (LeaseState) ops.opsForValue().get(appLsKey);
+
 
                 if (currState != null && !currState.isExpired()) {
+                    log.info("Acquired at: {}, Expires at: {}", currState.acquiredAt(), currState.expiresAt());
                     ops.unwatch();
                     return LEASED;
                 }
 
-                final var sync = createSynchronizerIfAbsent(syncKey, configProperties.syncIdleTtl());
+                final var sync = createSynchronizerIfAbsent(appSyncKey, configProperties.syncIdleTtl());
                 final var nextToken = sync.leaseCount() + 1; //sync can never be null
                 ops.multi();
                 try {
                     final var now = Instant.now();
                     final var lockState = new LeaseState(syncKey, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
-                    ops.expire(key, Duration.ofMillis(leaseDuration));
-                    ops.opsForValue().set(key, lockState, Duration.ofMillis(leaseDuration));
+                    ops.expire(appLsKey, Duration.ofMillis(leaseDuration));
+                    ops.opsForValue().set(appLsKey, lockState, Duration.ofMillis(leaseDuration));
 
                     final var res = ops.exec();
                     if (res.isEmpty()) {
@@ -98,22 +101,21 @@ public class SyncRegistry {
                         log.info("Res is empty for client: {}", id);
                         return CONFLICT;
                     } else {
-                        synchronizerTemplate.opsForValue().set(key, new Synchronizer(nextToken));
+                        synchronizerTemplate.opsForValue().set(appSyncKey, new Synchronizer(nextToken));
                         return new Success(new CompletedLeaseResponse(syncKey, nextToken));
                     }
                 }catch (DataAccessException e){
                     ops.discard();
-                    log.error("An error occurred while trying to perform redis transaction for key: {}", key, e);
+                    log.error("An error occurred while trying to perform redis transaction for key: {}", rawKey, e);
                     return new LeaseResult.TransactionError(e);
                 }
             }
         });
     }
 
-    Synchronizer createSynchronizerIfAbsent(SyncKey syncKey, long syncTtl){
-        final var key = syncKey.key();
+    Synchronizer createSynchronizerIfAbsent(String key, long syncTtl){
         var sync = this.synchronizerTemplate.opsForValue().get(key);
-        log.info("Sync: {}", sync);
+        log.info("Sync: {} Key: {}", sync, key);
 
         if (sync == null) {
             final var newSync = new Synchronizer(0L);

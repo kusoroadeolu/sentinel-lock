@@ -50,11 +50,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>tools.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>LATEST</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
@@ -92,8 +87,16 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+                <dependency>
+                    <groupId>tools.jackson</groupId>
+                    <artifactId>jackson-bom</artifactId>
+                    <version>3.0.0</version>
+                    <scope>import</scope>
+                    <type>pom</type>
+                </dependency>
         </dependencies>
     </dependencyManagement>
+
 
 
     <build>
