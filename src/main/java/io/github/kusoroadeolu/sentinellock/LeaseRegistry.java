@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.connection.DataType;
-import org.springframework.data.redis.core.KeyScanOptions;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
@@ -22,12 +20,10 @@ import java.time.Duration;
 import java.time.Instant;
 
 import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.AlreadyLeased.LEASED;
-import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Conflict.CONFLICT;
-import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
-import static io.github.kusoroadeolu.sentinellock.entities.Lease.*;
+import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.FAILED;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.*;
-import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
-import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
+import static io.github.kusoroadeolu.sentinellock.utils.Utils.*;
 
 @Service
 @Slf4j
@@ -49,94 +45,113 @@ public class LeaseRegistry {
         final var clientId = request.id();
         final var leaseDuration = request.requestedLeaseDuration();
 
+        if (leaseDuration >= this.configProperties.maxLeaseRequestDuration()){
+            future.completeExceptionally(new FailedLease(INVALID_LEASE_DURATION), FAILED);
+        }
+
         final var leaseResult = this.createLease(syncKey, leaseDuration, clientId);
          switch (leaseResult){
             case AlreadyLeased _ -> {
                  boolean notFull = this.requestQueue.offer(request, future);
-                 if (!notFull) future.completeExceptionally(new FailedLease(QUEUE_FULL), FAILED);
+                 if (!notFull) {
+                     future.completeExceptionally(new FailedLease(QUEUE_FULL), FAILED);
+                     log.info("Failed to add client: {} requesting for sync key: {} to queue", clientId, syncKey);
+                 }else {
+                     log.info("Added client: {} requesting for sync key: {} to queue", clientId, syncKey);
+                 }
             }
             case Success s -> {
-                log.info("Successfully leased key: {} to client: {}", key, clientId);
                 future.complete(s.lrp());
+                log.info("Successfully leased key: {} to client: {}", key, clientId);
             }
-            case LeaseResult.Conflict _ -> throw new LeaseConflictException();
             case LeaseResult.TransactionError _ -> future.completeExceptionally(new FailedLease(ERR), FAILED);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    LeaseResult createLease(SyncKey syncKey, long leaseDuration, ClientId id) {
-        final var rawKey = syncKey.key();
+    LeaseResult createLease(SyncKey key, long leaseDuration, ClientId id) {
+        final var rawKey = key.key();
         final var redisOps = this.lockStateTemplate.opsForValue().getOperations();
-        final var appSyncKey = appendSyncPrefix(rawKey);
-        final var appLsKey = appendLeasePrefix(rawKey);
-
-        return redisOps.execute(new SessionCallback<>() {
-            public LeaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
-                ops.watch(appLsKey);
-                final var currState = (LeaseState) ops.opsForValue().get(appLsKey);
+        final var syncKey = appendSyncPrefix(rawKey);
+        final var leaseKey = appendLeasePrefix(rawKey);
 
 
-                if (currState != null && !currState.isExpired()) {
-                    log.info("Acquired at: {}, Expires at: {}", currState.acquiredAt(), currState.expiresAt());
-                    ops.unwatch();
-                    return LEASED;
-                }
-
-                final var sync = createSynchronizerIfAbsent(appSyncKey, configProperties.syncIdleTtl());
-                final var nextToken = sync.leaseCount() + 1; //sync can never be null
-                ops.multi();
-                try {
-                    final var now = Instant.now();
-                    final var lockState = new LeaseState(syncKey, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
-                    ops.expire(appLsKey, Duration.ofMillis(leaseDuration));
-                    ops.opsForValue().set(appLsKey, lockState, Duration.ofMillis(leaseDuration));
-
-                    final var res = ops.exec();
-                    if (res.isEmpty()) {
-                        ops.discard();
-                        log.info("Res is empty for client: {}", id);
-                        return CONFLICT;
-                    } else {
-                        synchronizerTemplate.opsForValue().set(appSyncKey, new Synchronizer(nextToken));
-                        return new Success(new CompleteLease(syncKey, nextToken));
-                    }
-                }catch (DataAccessException e){
-                    ops.discard();
-                    log.error("An error occurred while trying to perform redis transaction for key: {}", rawKey, e);
-                    return new LeaseResult.TransactionError(e);
-                }
-            }
-        });
+        //If another client modifies in between us watching and our call to exec, we can assume another client has acquired the lease
+        return redisOps.execute(
+                new LeaseTransactionCallback(leaseKey, syncKey, key, id, leaseDuration, rawKey)
+        );
     }
 
     Synchronizer createSynchronizerIfAbsent(String key, long syncTtl){
         var sync = this.synchronizerTemplate.opsForValue().get(key);
-        log.info("Sync: {} Key: {}", sync, key);
-
-        if (sync == null) {
+        if (isNull(sync)) {
             final var newSync = new Synchronizer(0L);
             final var isAbsent = this.synchronizerTemplate.opsForValue().setIfAbsent(key, newSync, Duration.ofMillis(syncTtl));
             if (isAbsent) return newSync;
         }
-
-        log.info("Set sync: {}", sync);
-
         this.synchronizerTemplate.expire(key, Duration.ofMillis(syncTtl));
         return sync;
     }
 
-    public sealed interface LeaseResult permits AlreadyLeased, Success, LeaseResult.TransactionError, LeaseResult.Conflict {
+    public sealed interface LeaseResult permits AlreadyLeased, Success, LeaseResult.TransactionError {
         enum AlreadyLeased implements LeaseResult{  //represents if this sync is currently leased
             LEASED
-        }
-
-        enum Conflict implements LeaseResult{
-            CONFLICT
         }
 
         record TransactionError(Exception e) implements LeaseResult{}
 
         record Success(Lease lrp) implements LeaseResult{} //represents if this sync is unleased
+    }
+
+    private final class LeaseTransactionCallback implements SessionCallback<LeaseResult> {
+        private final String leaseKey;
+        private final String syncKey;
+        private final SyncKey key;
+        private final ClientId id;
+        private final long leaseDuration;
+        private final String rawKey;
+
+        public LeaseTransactionCallback(String leaseKey, String syncKey, SyncKey key, ClientId id, long leaseDuration, String rawKey) {
+            this.leaseKey = leaseKey;
+            this.syncKey = syncKey;
+            this.key = key;
+            this.id = id;
+            this.leaseDuration = leaseDuration;
+            this.rawKey = rawKey;
+        }
+
+        @SuppressWarnings("unchecked")
+        public LeaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
+            ops.watch(leaseKey);
+            final var currState = (LeaseState) ops.opsForValue().get(leaseKey);
+            if (!isNull(currState) && !currState.isExpired()) {
+                log.info("Acquired at: {}, Expires at: {}", currState.acquiredAt(), currState.expiresAt());
+                ops.unwatch();
+                return LEASED;
+            }
+
+            final var sync = createSynchronizerIfAbsent(syncKey, configProperties.syncIdleTtl());
+            final var nextToken = sync.currentFencingToken() + 1; //sync can never be null
+            ops.multi();
+            try {
+                final var now = Instant.now();
+                final var lockState = new LeaseState(key, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
+                ops.expire(leaseKey, Duration.ofMillis(leaseDuration));
+                ops.opsForValue().set(leaseKey, lockState, Duration.ofMillis(leaseDuration));
+
+                final var res = ops.exec();
+                if (isNull(res) || res.isEmpty()) {
+                    ops.discard();
+                    log.info("Lease acquire transaction for client: {} failed due to a race condition", id);
+                    return LEASED;
+                } else {
+                    synchronizerTemplate.opsForValue().set(syncKey, new Synchronizer(nextToken));
+                    return new Success(new CompleteLease(key, nextToken));
+                }
+            }catch (DataAccessException e){
+                ops.discard();
+                log.error("An error occurred while trying to a perform redis transaction to acquire a lease for key: {}", rawKey, e);
+                return new LeaseResult.TransactionError(e);
+            }
+        }
     }
 }

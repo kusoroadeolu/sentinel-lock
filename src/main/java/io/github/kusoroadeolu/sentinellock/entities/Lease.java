@@ -6,7 +6,7 @@ public interface Lease {
 
     record FailedLease(Cause cause) implements Lease{
         public enum Cause{
-            ERR, QUEUE_FULL
+            ERR, QUEUE_FULL, INVALID_LEASE_DURATION
         }
 
     }
