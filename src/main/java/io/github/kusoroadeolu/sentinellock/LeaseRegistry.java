@@ -70,11 +70,11 @@ public class LeaseRegistry {
         final var redisOps = this.lockStateTemplate.opsForValue().getOperations();
         final var syncKey = appendSyncPrefix(rawKey);
         final var leaseKey = appendLeasePrefix(rawKey);
-
+        final var syncTtl = this.configProperties.syncIdleTtl();
 
         //If another client modifies in between us watching and our call to exec, we can assume another client has acquired the lease
         return redisOps.execute(
-                new LeaseTransactionCallback(leaseKey, syncKey, key, id, leaseDuration, rawKey)
+                new LeaseTransactionCallback(leaseKey, syncKey, key, id, syncTtl ,leaseDuration, rawKey)
         );
     }
 
@@ -104,14 +104,16 @@ public class LeaseRegistry {
         private final String syncKey;
         private final SyncKey key;
         private final ClientId id;
+        private final long syncTtl;
         private final long leaseDuration;
         private final String rawKey;
 
-        public LeaseTransactionCallback(String leaseKey, String syncKey, SyncKey key, ClientId id, long leaseDuration, String rawKey) {
+        public LeaseTransactionCallback(String leaseKey, String syncKey, SyncKey key, ClientId id, long syncTtl, long leaseDuration, String rawKey) {
             this.leaseKey = leaseKey;
             this.syncKey = syncKey;
             this.key = key;
             this.id = id;
+            this.syncTtl = syncTtl;
             this.leaseDuration = leaseDuration;
             this.rawKey = rawKey;
         }
@@ -133,14 +135,13 @@ public class LeaseRegistry {
                 final var now = Instant.now();
                 final var lockState = new LeaseState(key, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
                 ops.opsForValue().set(leaseKey, lockState, Duration.ofMillis(leaseDuration));
-
                 final var res = ops.exec();
                 if (res.isEmpty()) {
                     ops.discard();
                     log.info("Lease acquire transaction for client: {} failed due to a race condition", id);
                     return LEASED;
                 } else {
-                    synchronizerTemplate.opsForValue().set(syncKey, new Synchronizer(nextToken));
+                    synchronizerTemplate.opsForValue().set(syncKey, new Synchronizer(nextToken), Duration.ofMillis(syncTtl));
                     return new Success(new CompleteLease(key, nextToken));
                 }
             }catch (DataAccessException e){
