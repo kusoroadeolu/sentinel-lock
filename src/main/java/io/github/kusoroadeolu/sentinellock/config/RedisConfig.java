@@ -11,8 +11,10 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisKeyValueAdapter;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.convert.KeyspaceConfiguration;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
 
@@ -44,9 +46,23 @@ public class RedisConfig extends KeyspaceConfiguration{
     }
 
     @Bean
-    public RedisTemplate<String, LeaseState> lockStateTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+    public RedisTemplate<String, LeaseState> leaseStateTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
         final var redisSerializer = new LeaseStateSerializer(objectMapper);
         final var redisTemplate = new RedisTemplate<String, LeaseState>();
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(redisSerializer);
+        redisTemplate.setHashValueSerializer(redisSerializer);
+        redisTemplate.afterPropertiesSet();
+        return redisTemplate;
+    }
+
+
+    @Bean
+    public StringRedisTemplate testTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisSerializer = new GenericJacksonJsonRedisSerializer(objectMapper);
+        final var redisTemplate = new StringRedisTemplate();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(new StringRedisSerializer());
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());

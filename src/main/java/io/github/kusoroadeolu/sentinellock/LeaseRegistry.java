@@ -5,7 +5,6 @@ import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
-import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -13,7 +12,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
-import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -38,7 +36,6 @@ public class LeaseRegistry {
         this.tryAcquireOrQueue(request, future);
     }
 
-    @Retryable(includes = LeaseConflictException.class, jitter = 2)
     public void tryAcquireOrQueue(@NonNull PendingRequest request, @NonNull CompletableLease future){
         final var syncKey = request.syncKey();
         final var key = syncKey.key();
@@ -88,7 +85,7 @@ public class LeaseRegistry {
             final var isAbsent = this.synchronizerTemplate.opsForValue().setIfAbsent(key, newSync, Duration.ofMillis(syncTtl));
             if (isAbsent) return newSync;
         }
-        this.synchronizerTemplate.expire(key, Duration.ofMillis(syncTtl));
+
         return sync;
     }
 
@@ -135,11 +132,10 @@ public class LeaseRegistry {
             try {
                 final var now = Instant.now();
                 final var lockState = new LeaseState(key, id, nextToken, now, now.plusMillis(leaseDuration), leaseDuration);
-                ops.expire(leaseKey, Duration.ofMillis(leaseDuration));
                 ops.opsForValue().set(leaseKey, lockState, Duration.ofMillis(leaseDuration));
 
                 final var res = ops.exec();
-                if (isNull(res) || res.isEmpty()) {
+                if (res.isEmpty()) {
                     ops.discard();
                     log.info("Lease acquire transaction for client: {} failed due to a race condition", id);
                     return LEASED;
