@@ -1,14 +1,9 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
 import io.github.kusoroadeolu.sentinellock.entities.QueuedPendingRequest;
-import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.TaskExecutor;
-import org.springframework.core.task.VirtualThreadTaskExecutor;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Map;
 import java.util.concurrent.*;
@@ -27,6 +22,11 @@ public class MiscConfig {
     @Bean(destroyMethod = "shutdown")
     public ScheduledExecutorService scheduledExecutorService(){
         return Executors.newScheduledThreadPool(50, ofVirtual().factory());
+    }
+
+    @Bean(name = "requestDispatcherExecutor")
+    public ExecutorService requestDispatcherExecutor(){
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     public Executor leaseThreadPool(){

@@ -22,7 +22,7 @@ public class RedisExpiryHandler {
     private final RedisTemplate<String, LeaseState> lockStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final RequestQueue requestQueue;
-    private final SyncRegistry registry;
+    private final LeaseRegistry registry;
 
     @EventListener
     public void handleLeaseExpiry(RedisKeyExpiredEvent<?> event)  {

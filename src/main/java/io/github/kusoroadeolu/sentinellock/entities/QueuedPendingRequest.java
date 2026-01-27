@@ -1,11 +1,9 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
 
-import io.github.kusoroadeolu.sentinellock.entities.LeaseResponse.CompletedLeaseResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 
 //A pending request that has already been placed in the client map

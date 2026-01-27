@@ -6,16 +6,15 @@ import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.TimedOutLease;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.*;
 import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
 
-@Component
+@Service
 @RequiredArgsConstructor
 public class RequestQueue {
     private final Map<String, BlockingQueue<QueuedPendingRequest>> map;

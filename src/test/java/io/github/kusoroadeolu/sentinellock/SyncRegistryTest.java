@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class SyncRegistryTest {
 
     @Autowired
-    private SyncRegistry syncRegistry;
+    private LeaseRegistry leaseRegistry;
 
     @Test
     public void shouldReturnACompletedLeaseResponse_onUnAcquiredLease() {
@@ -28,7 +28,7 @@ class SyncRegistryTest {
 
         PendingRequest request = new PendingRequest(id, syncKey, 2000, 4000);
         CompletableLease future = new CompletableLease();
-        syncRegistry.ask(request, future);
+        leaseRegistry.ask(request, future);
         assertEquals(CompletableLease.Status.ACQUIRED, future.getStatus());
     }
 
@@ -39,12 +39,12 @@ class SyncRegistryTest {
         ClientId client2 = new ClientId("client-2");
         CompletableLease future = new CompletableLease();
         PendingRequest request1 = new PendingRequest(client1, syncKey, 3000, 5000);
-        syncRegistry.ask(request1, future);
+        leaseRegistry.ask(request1, future);
         assertEquals(CompletableLease.Status.ACQUIRED, future.getStatus());
 
         CompletableLease future1 = new CompletableLease();
         PendingRequest request2 = new PendingRequest(client2, syncKey, 500, 1000);
-        syncRegistry.ask(request2, future1);
+        leaseRegistry.ask(request2, future1);
         assertEquals(CompletableLease.Status.WAITING, future1.getStatus());
     }
 
@@ -58,14 +58,14 @@ class SyncRegistryTest {
         // Client 1 acquires with short lease
         CompletableLease future1 = new CompletableLease();
         PendingRequest request1 = new PendingRequest(client1, syncKey, 500, 1000);
-        syncRegistry.ask(request1, future1);
+        leaseRegistry.ask(request1, future1);
 
         // Wait for lease to expire
         Thread.sleep(600);
 
         CompletableLease future2 = new CompletableLease();
         PendingRequest request2 = new PendingRequest(client2, syncKey, 2000, 4000);
-        syncRegistry.ask(request2, future2);
+        leaseRegistry.ask(request2, future2);
 
         assertEquals(CompletableLease.Status.ACQUIRED, future2.getStatus());
     }
@@ -80,7 +80,7 @@ class SyncRegistryTest {
         );
 
         CompletableLease future1 = new CompletableLease();
-        syncRegistry.ask(request1, future1);
+        leaseRegistry.ask(request1, future1);
 
         Thread.sleep(150);
 
@@ -88,7 +88,7 @@ class SyncRegistryTest {
         PendingRequest request2 = new PendingRequest(
                 new ClientId("client-2"), syncKey, 100, 500
         );
-        syncRegistry.ask(request2, future2);
+        leaseRegistry.ask(request2, future2);
         Lease.CompleteLease l1 = future1.join().asCompleteLease();
         Lease.CompleteLease l2 =  future2.join().asCompleteLease();
         assertTrue(l2.fencingToken() > l1.fencingToken());

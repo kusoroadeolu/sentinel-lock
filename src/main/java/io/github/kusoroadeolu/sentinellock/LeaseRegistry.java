@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.sentinellock;
 
-import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased;
-import io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Success;
+import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.AlreadyLeased;
+import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.core.KeyScanOptions;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
@@ -19,11 +21,10 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 
-import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.AlreadyLeased.LEASED;
-import static io.github.kusoroadeolu.sentinellock.SyncRegistry.LeaseResult.Conflict.CONFLICT;
+import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.AlreadyLeased.LEASED;
+import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Conflict.CONFLICT;
 import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.*;
-import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.*;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.*;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
@@ -31,7 +32,7 @@ import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class SyncRegistry {
+public class LeaseRegistry {
     private final RequestQueue requestQueue;
     private final RedisTemplate<String, LeaseState> lockStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
@@ -54,13 +55,12 @@ public class SyncRegistry {
                  boolean notFull = this.requestQueue.offer(request, future);
                  if (!notFull) future.completeExceptionally(new FailedLease(QUEUE_FULL), FAILED);
             }
-            //TODO handle case in which offer returns false
             case Success s -> {
                 log.info("Successfully leased key: {} to client: {}", key, clientId);
                 future.complete(s.lrp());
             }
             case LeaseResult.Conflict _ -> throw new LeaseConflictException();
-            case LeaseResult.TransactionError _ -> future.completeExceptionally(new FailedLease(ERR), FAILED); //TODO handle transaction errors
+            case LeaseResult.TransactionError _ -> future.completeExceptionally(new FailedLease(ERR), FAILED);
         }
     }
 
