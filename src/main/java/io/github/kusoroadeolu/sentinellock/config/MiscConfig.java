@@ -22,7 +22,7 @@ public class MiscConfig {
 
     @Bean(destroyMethod = "shutdown")
     public ScheduledExecutorService scheduledExecutorService(){
-        return Executors.newScheduledThreadPool(50, ofVirtual().factory());
+        return Executors.newScheduledThreadPool(100, ofVirtual().factory());
     }
 
     @Bean(name = "requestDispatcherExecutor")

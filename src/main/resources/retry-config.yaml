@@ -1,0 +1,4 @@
+lease:
+  backoff-interval-ms: 2000
+  max-retries: 5
+  jitter-ms: 2000

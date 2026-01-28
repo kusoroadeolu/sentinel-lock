@@ -21,9 +21,6 @@ class FencingTokenCheckerTest {
     @Autowired
     private FencingTokenChecker<String> fencingTokenChecker;
 
-    @Autowired
-    private RedisTemplate<String, Synchronizer> synchronizerTemplate;
-
     private List<String> list; //Storage service lol
 
     @BeforeEach

@@ -5,13 +5,18 @@ import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
+import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.core.retry.RetryException;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -33,6 +38,7 @@ public class LeaseRegistry {
     private final RedisTemplate<String, LeaseState> leaseStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final SentinelLockConfigProperties configProperties;
+    private final RetryTemplate leaseAcquisitionRetryTemplate;
 
     public void ask(@NonNull PendingRequest request, CompletableLease future) { //Users should probably wait until they acquire the lock, so we need a way to make them wait
         this.tryAcquireOrQueue(request, future);
@@ -66,6 +72,7 @@ public class LeaseRegistry {
         }
     }
 
+    @Retryable
     LeaseResult createLease(SyncKey key, long leaseDuration, ClientId id) {
         final var rawKey = key.key();
         final var redisOps = this.leaseStateTemplate.opsForValue().getOperations();
@@ -74,10 +81,19 @@ public class LeaseRegistry {
         final var syncTtl = this.configProperties.syncIdleTtl();
 
         //If another client modifies in between us watching and our call to exec, we can assume another client has acquired the lease
-        return redisOps.execute(
-                new LeaseTransactionCallback(leaseKey, syncKey, key, id, syncTtl ,leaseDuration, rawKey)
-        );
+
+        try {
+           return this.leaseAcquisitionRetryTemplate.execute(() ->
+                 redisOps.execute(
+                        new LeaseTransactionCallback(leaseKey, syncKey, key, id, syncTtl ,leaseDuration, rawKey)
+                )
+            );
+        }catch (RetryException e){
+            return new LeaseResult.TransactionError(e);
+        }
+
     }
+
 
     Synchronizer createSynchronizerIfAbsent(String key, long syncTtl){
         var sync = this.synchronizerTemplate.opsForValue().get(key);
@@ -148,7 +164,7 @@ public class LeaseRegistry {
             }catch (DataAccessException e){
                 ops.discard();
                 log.error("An error occurred while trying to a perform redis transaction to acquire a lease for key: {}", rawKey, e);
-                return new LeaseResult.TransactionError(e);
+                throw new LeaseConflictException();
             }
         }
     }
