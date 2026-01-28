@@ -21,14 +21,16 @@ import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Alre
 import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.FAILED;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.*;
-import static io.github.kusoroadeolu.sentinellock.utils.Utils.*;
+import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
+import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
+import static java.util.Objects.isNull;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class LeaseRegistry {
     private final RequestQueue requestQueue;
-    private final RedisTemplate<String, LeaseState> lockStateTemplate;
+    private final RedisTemplate<String, LeaseState> leaseStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final SentinelLockConfigProperties configProperties;
 
@@ -45,7 +47,6 @@ public class LeaseRegistry {
         if (leaseDuration >= this.configProperties.maxLeaseRequestDuration()){
             future.completeExceptionally(new FailedLease(INVALID_LEASE_DURATION), FAILED);
         }
-
         final var leaseResult = this.createLease(syncKey, leaseDuration, clientId);
          switch (leaseResult){
             case AlreadyLeased _ -> {
@@ -67,7 +68,7 @@ public class LeaseRegistry {
 
     LeaseResult createLease(SyncKey key, long leaseDuration, ClientId id) {
         final var rawKey = key.key();
-        final var redisOps = this.lockStateTemplate.opsForValue().getOperations();
+        final var redisOps = this.leaseStateTemplate.opsForValue().getOperations();
         final var syncKey = appendSyncPrefix(rawKey);
         final var leaseKey = appendLeasePrefix(rawKey);
         final var syncTtl = this.configProperties.syncIdleTtl();

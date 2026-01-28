@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.sentinellock.config;
 
+import io.github.kusoroadeolu.sentinellock.entities.BlockingQueueSet;
 import io.github.kusoroadeolu.sentinellock.entities.QueuedPendingRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +16,7 @@ import static java.lang.Thread.ofVirtual;
 public class MiscConfig {
 
     @Bean
-    public Map<String, BlockingQueue<QueuedPendingRequest>> map(){
+    public Map<String, BlockingQueueSet<QueuedPendingRequest>> map(){
         return new ConcurrentHashMap<>();
     }
 
@@ -29,7 +30,4 @@ public class MiscConfig {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
-    public Executor leaseThreadPool(){
-        return Executors.newVirtualThreadPerTaskExecutor();
-    }
 }

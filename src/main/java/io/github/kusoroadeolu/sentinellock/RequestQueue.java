@@ -17,7 +17,7 @@ import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Stat
 @Service
 @RequiredArgsConstructor
 public class RequestQueue {
-    private final Map<String, BlockingQueue<QueuedPendingRequest>> map;
+    private final Map<String, BlockingQueueSet<QueuedPendingRequest>> map;
     private final SentinelLockConfigProperties sentinelLockConfigProperties;
     private final ScheduledExecutorService scheduledExecutorService;
 
@@ -25,7 +25,7 @@ public class RequestQueue {
     public boolean offer(@NonNull PendingRequest request, CompletableLease future){
        final var key = request.syncKey().key();
        final var queue =
-               this.map.computeIfAbsent(key , (_) -> new LinkedBlockingQueue<>(this.sentinelLockConfigProperties.maxQueuedRegistryClients()));
+               this.map.computeIfAbsent(key , (_) -> new BlockingQueueSet<>(this.sentinelLockConfigProperties.maxQueuedRegistryClients()));
        final var qpr = new QueuedPendingRequest(request, future);
        final var qd = qpr.request().queueDuration();
        final var scheduled = this.scheduledExecutorService.schedule(() -> {
@@ -37,7 +37,7 @@ public class RequestQueue {
     }
 
     public Optional<QueuedPendingRequest> poll(@NonNull SyncKey syncKey){
-        return Optional.ofNullable(this.map.get(syncKey.key()).poll());
+        return this.map.get(syncKey.key()).poll();
     }
 
     public boolean remove(@NonNull QueuedPendingRequest qpr){
