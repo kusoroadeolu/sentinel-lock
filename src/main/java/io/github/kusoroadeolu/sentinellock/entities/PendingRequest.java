@@ -1,5 +1,6 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
+import lombok.Builder;
 import lombok.NonNull;
 
 import java.time.Instant;

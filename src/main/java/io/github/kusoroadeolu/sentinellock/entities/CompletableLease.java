@@ -5,6 +5,7 @@ import lombok.Setter;
 import org.jspecify.annotations.NonNull;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 public class CompletableLease {
     private final CompletableFuture<Lease> future;
@@ -35,6 +36,11 @@ public class CompletableLease {
     public Lease join(){
         this.future.join();
         return this.lease;
+    }
+
+    public CompletableLease whenComplete(BiConsumer<? super Lease, ? super Throwable> action){
+        this.future.whenComplete(action);
+        return this;
     }
 
 

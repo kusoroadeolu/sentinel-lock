@@ -1,0 +1,47 @@
+syntax = "proto3";
+package sentinelproto;
+
+option java_multiple_files = true;
+option java_package = "io.github.kusoroadeolu";
+service LeaseService {
+  rpc acquireLease(LeaseRequest) returns (stream Lease);
+}
+
+message LeaseRequest{
+  SyncKey key = 1;
+  ClientId id = 2;
+  int64 requested_lease_duration = 3;
+  int64 queue_duration = 4;
+}
+
+message SyncKey{
+  string sync_key = 1;
+}
+
+message ClientId{
+  string client_id = 1;
+}
+
+message Lease {
+  oneof result {
+    CompleteLease complete = 1;
+    FailedLease failed = 2;
+    TimedOutLease timed_out = 3;
+  }
+}
+
+message CompleteLease {
+  SyncKey key = 1;
+  int64 fencing_token = 2;
+}
+
+message FailedLease {
+  Cause cause = 1;
+  enum Cause {
+    ERR = 0;
+    QUEUE_FULL = 1;
+    INVALID_LEASE_DURATION = 2;
+  }
+}
+
+message TimedOutLease {}

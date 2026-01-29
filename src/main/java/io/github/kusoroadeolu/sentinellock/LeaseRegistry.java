@@ -81,14 +81,13 @@ public class LeaseRegistry {
         final var syncTtl = this.configProperties.syncIdleTtl();
 
         //If another client modifies in between us watching and our call to exec, we can assume another client has acquired the lease
-
         try {
            return this.leaseAcquisitionRetryTemplate.execute(() ->
                  redisOps.execute(
                         new LeaseTransactionCallback(leaseKey, syncKey, key, id, syncTtl ,leaseDuration, rawKey)
                 )
             );
-        }catch (RetryException e){
+        } catch (RetryException e){
             return new LeaseResult.TransactionError(e);
         }
 
