@@ -81,7 +81,7 @@ public class FencingTokenValidator {
                     return SaveResult.Failed.FAILED;
                 }
 
-                clientTemplate.opsForValue().set(Utils.appendClientPrefix(key.key()), Duration.ofMillis(clientConfigProperties.keyTtl()));
+                clientTemplate.opsForValue().set(Utils.appendClientPrefix(key.key()), object ,Duration.ofMillis(clientConfigProperties.keyTtl()));
                 return new SaveResult.Success();
             } catch (DataAccessException e) {
                 ops.discard();

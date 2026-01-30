@@ -6,6 +6,7 @@ import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigPropert
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
+import io.github.kusoroadeolu.sentinellock.exceptions.LeaseTransactionException;
 import io.github.kusoroadeolu.sentinellock.utils.Utils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -157,7 +158,7 @@ public class LeaseRegistry {
             }catch (DataAccessException e){
                 ops.discard();
                 log.error("An error occurred while trying to a perform redis transaction to acquire a lease for key: {}", rawKey, e);
-                throw new LeaseConflictException();
+                throw new LeaseTransactionException();
             }
         }
     }
@@ -195,7 +196,7 @@ public class LeaseRegistry {
                 } catch (DataAccessException e) {
                     ops.discard();
                     log.error("An error occurred while trying to a perform redis transaction to release a lease for key: {}", rawKey, e);
-                    throw new LeaseConflictException();
+                    throw new LeaseTransactionException();
                 }
             }
         }
