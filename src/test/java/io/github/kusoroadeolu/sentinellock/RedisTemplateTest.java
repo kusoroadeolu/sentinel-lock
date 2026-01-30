@@ -81,7 +81,7 @@ public class RedisTemplateTest {
 
     @Test
     void testWatchWithExpiration() throws Exception {
-        testTemplate.execute(new SessionCallback<Object>() {
+        testTemplate.execute(new SessionCallback<>() {
             @Override
             public Object execute(RedisOperations ops) throws DataAccessException {
                 var key = "test:expiry";

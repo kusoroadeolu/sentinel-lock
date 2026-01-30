@@ -1,17 +1,19 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
 import io.github.kusoroadeolu.sentinellock.annotations.Proto;
+import org.jspecify.annotations.NonNull;
 
 @Proto
 public interface Lease {
     io.github.kusoroadeolu.Lease toProto();
-
-    record CompleteLease(SyncKey key, long fencingToken) implements Lease{
+    //TODO add client id field to proto
+    record CompleteLease(@NonNull SyncKey key, @NonNull ClientId id, long fencingToken) implements Lease{
         public io.github.kusoroadeolu.Lease toProto(){
             final var complete = io.github.kusoroadeolu.CompleteLease
                     .newBuilder()
                     .setFencingToken(this.fencingToken)
                     .setKey(this.key.toProto())
+                    .setId(id.toProto())
                     .build();
 
             return io.github.kusoroadeolu.Lease.newBuilder()

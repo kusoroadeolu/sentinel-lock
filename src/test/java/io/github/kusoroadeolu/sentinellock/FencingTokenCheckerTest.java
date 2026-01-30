@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,7 +18,7 @@ class FencingTokenCheckerTest {
     private LeaseRegistry leaseRegistry;
 
     @Autowired
-    private FencingTokenChecker<String> fencingTokenChecker;
+    private FencingTokenChecker fencingTokenChecker;
 
     private List<String> list; //Storage service lol
 
@@ -46,7 +45,7 @@ class FencingTokenCheckerTest {
     @Test
     public void onStaleFencingToken_shouldReturnFailedResult(){
         SyncKey syncKey = new SyncKey("resource-b");
-        Lease lease1 = new Lease.CompleteLease(syncKey, -1);
+        Lease lease1 = new Lease.CompleteLease(syncKey, new ClientId(""),-1);
         SaveResult result = fencingTokenChecker.save(lease1, () -> list.add("another_string"));
         assertInstanceOf(SaveResult.Failed.class, result);
     }
@@ -64,8 +63,8 @@ class FencingTokenCheckerTest {
 
         ClientId client2 = new ClientId("client-2");
         CompletableLease future2 = new CompletableLease();
-        PendingRequest request2 = new PendingRequest(client1, syncKey, 500, 5000);
-        leaseRegistry.ask(request1, future2);
+        PendingRequest request2 = new PendingRequest(client2, syncKey, 500, 5000);
+        leaseRegistry.ask(request2, future2);
         assertEquals(CompletableLease.Status.ACQUIRED, future2.getStatus());
 
 

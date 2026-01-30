@@ -4,6 +4,7 @@ import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigPropert
 import io.github.kusoroadeolu.sentinellock.entities.Lease;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -24,23 +25,32 @@ import static java.util.Objects.isNull;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FencingTokenChecker<T> {
+public class FencingTokenChecker {
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final SentinelLockConfigProperties configProperties;
     private final static String LOG_MESSAGE = "Save transaction for fencing token: {} failed due to a race condition";
+
 
     public SaveResult save(@NonNull Lease lease, @NonNull Runnable action){
         final var redisOps = this.synchronizerTemplate.opsForValue().getOperations();
         return redisOps.execute(new RunnableSessionCallback(lease, action, configProperties));
     }
 
-    public SaveResult save(@NonNull Lease lease, @NonNull T t , @NonNull Function<T, ?> action){
+    public SaveResult save(@NonNull Lease lease, @NonNull Object obj , @NonNull Function<Object, ?> action){
         final var redisOps = this.synchronizerTemplate.opsForValue().getOperations();
-        return redisOps.execute(new FunctionSessionCallback<>(lease, action, t, configProperties));
+        return redisOps.execute(new FunctionSessionCallback(lease, action, obj, configProperties));
     }
 
     public interface SaveResult {
-        record Success  (@Nullable Object value) implements SaveResult {}
+        default boolean isValid(){
+            return false;
+        }
+
+        record Success  (@Nullable Object value) implements SaveResult {
+            public boolean isValid() {
+                return true;
+            }
+        }
         record Error (@NonNull Exception ex) implements SaveResult {}
         enum Invalid implements SaveResult{
             INVALID
@@ -54,7 +64,7 @@ public class FencingTokenChecker<T> {
 
         @SuppressWarnings("unchecked")
         public @NonNull SaveResult execute(@NonNull RedisOperations ops) throws DataAccessException {
-            if (!(lease instanceof CompleteLease(var key, var fencingToken))) return SaveResult.Invalid.INVALID;
+            if (!(lease instanceof CompleteLease(var key, var clientId ,var fencingToken))) return SaveResult.Invalid.INVALID;
             final var syncKey = appendSyncPrefix(key.key());
             final var syncTtl = this.configProperties.syncIdleTtl();
 
@@ -85,11 +95,11 @@ public class FencingTokenChecker<T> {
     }
 
     @SuppressWarnings("unchecked")
-    private record FunctionSessionCallback<T>(@NonNull Lease lease, @NonNull Function<T, ?> action, @NonNull T t,  @NonNull SentinelLockConfigProperties configProperties) implements SessionCallback<SaveResult> {
+    private record FunctionSessionCallback(@NonNull Lease lease, @NonNull Function<Object, ?> action, @NonNull Object obj,  @NonNull SentinelLockConfigProperties configProperties) implements SessionCallback<SaveResult> {
 
         @Override
         public @NonNull SaveResult execute(@NonNull RedisOperations ops) throws DataAccessException {
-            if (!(lease instanceof CompleteLease(var key, var fencingToken))) return SaveResult.Invalid.INVALID;
+            if (!(lease instanceof CompleteLease(var key, var clientId ,var fencingToken))) return SaveResult.Invalid.INVALID;
             final var syncKey = appendSyncPrefix(key.key());
             final var syncTtl = this.configProperties.syncIdleTtl();
             try {
@@ -102,7 +112,7 @@ public class FencingTokenChecker<T> {
 
                 ops.multi();
                 ops.expire(syncKey, Duration.ofMillis(syncTtl)); //A redis action to ensure this transaction isn't empty on success
-                final var o = action.apply(t);
+                final var o = action.apply(obj);
                 final var res = ops.exec();
                 if (res.isEmpty()){
                     log.info(LOG_MESSAGE, fencingToken);

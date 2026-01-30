@@ -7,6 +7,8 @@ service LeaseService {
   rpc acquireLease(LeaseRequest) returns (stream Lease);
 }
 
+
+//Registry stuff
 message LeaseRequest{
   SyncKey key = 1;
   ClientId id = 2;
@@ -32,7 +34,8 @@ message Lease {
 
 message CompleteLease {
   SyncKey key = 1;
-  int64 fencing_token = 2;
+  ClientId id = 2;
+  int64 fencing_token = 3;
 }
 
 message FailedLease {
@@ -45,3 +48,6 @@ message FailedLease {
 }
 
 message TimedOutLease {}
+
+
+//Fencing token checker stuff

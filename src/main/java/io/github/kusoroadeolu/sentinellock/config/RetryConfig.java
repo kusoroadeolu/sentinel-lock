@@ -21,7 +21,7 @@ public class RetryConfig {
     private final LeaseRetryProperties leaseRetryProperties;
 
     @Bean
-    public RetryPolicy leaseAcquisitionRetryPolicy(){
+    public RetryPolicy leaseRetryPolicy(){
         return RetryPolicy
                 .builder()
                 .delay(Duration.ofMillis(leaseRetryProperties.backoffIntervalMs()))
@@ -32,9 +32,9 @@ public class RetryConfig {
     }
 
     @Bean
-    public RetryTemplate leaseAcquisitionRetryTemplate(RetryPolicy leaseAcquisitionRetryPolicy){
+    public RetryTemplate leaseRetryTemplate(RetryPolicy leaseRetryPolicy){
         final var retryTemplate = new RetryTemplate();
-        retryTemplate.setRetryPolicy(leaseAcquisitionRetryPolicy);
+        retryTemplate.setRetryPolicy(leaseRetryPolicy);
         retryTemplate.setRetryListener(new CompositeRetryListener());
         return retryTemplate;
     }
