@@ -2,6 +2,7 @@ package io.github.kusoroadeolu.sentinellock.config;
 
 import io.github.kusoroadeolu.sentinellock.entities.LeaseState;
 import io.github.kusoroadeolu.sentinellock.entities.Synchronizer;
+import io.github.kusoroadeolu.sentinellock.serializers.ClientSerializer;
 import io.github.kusoroadeolu.sentinellock.serializers.LeaseStateSerializer;
 import io.github.kusoroadeolu.sentinellock.serializers.SynchronizerSerializer;
 import org.jspecify.annotations.NonNull;
@@ -49,6 +50,19 @@ public class RedisConfig extends KeyspaceConfiguration{
     public RedisTemplate<String, LeaseState> leaseStateTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
         final var redisSerializer = new LeaseStateSerializer(objectMapper);
         final var redisTemplate = new RedisTemplate<String, LeaseState>();
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(redisSerializer);
+        redisTemplate.setHashValueSerializer(redisSerializer);
+        redisTemplate.afterPropertiesSet();
+        return redisTemplate;
+    }
+
+    @Bean
+    public RedisTemplate<String, Object> clientTemplate(RedisConnectionFactory redisConnectionFactory, ObjectMapper objectMapper){
+        final var redisSerializer = new ClientSerializer(objectMapper);
+        final var redisTemplate = new RedisTemplate<String, Object>();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(new StringRedisSerializer());
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());

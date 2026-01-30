@@ -5,5 +5,6 @@ public class Constants {
 
     public final static String LS_PREFIX = "ls:";
     public final static String SYNC_PREFIX = "sync:";
+    public final static String CLIENT_PREFIX = "client:";
 
 }

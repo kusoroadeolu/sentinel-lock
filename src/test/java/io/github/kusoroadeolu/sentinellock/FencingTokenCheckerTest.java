@@ -1,14 +1,11 @@
 package io.github.kusoroadeolu.sentinellock;
 
-import io.github.kusoroadeolu.sentinellock.FencingTokenChecker.SaveResult;
+import io.github.kusoroadeolu.sentinellock.FencingTokenValidator.SaveResult;
 import io.github.kusoroadeolu.sentinellock.entities.*;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,14 +15,12 @@ class FencingTokenCheckerTest {
     private LeaseRegistry leaseRegistry;
 
     @Autowired
-    private FencingTokenChecker fencingTokenChecker;
+    private RedisTemplate<Object, Object> clientTemplate;
 
-    private List<String> list; //Storage service lol
+    @Autowired
+    private FencingTokenValidator fencingTokenValidator;
 
-    @BeforeEach
-    public void setup(){
-       list = new CopyOnWriteArrayList<>();
-    }
+
 
     @Test
     public void onCurrentFencingToken_shouldReturnSuccessResult(){
@@ -36,17 +31,16 @@ class FencingTokenCheckerTest {
         leaseRegistry.ask(request1, future);
         assertEquals(CompletableLease.Status.ACQUIRED, future.getStatus());
         Lease lease = future.join();
-        SaveResult result = fencingTokenChecker.save(lease, () -> list.add("some_string"));
+        SaveResult result = fencingTokenValidator.validateAndSave(lease, "changed_value");
         assertInstanceOf(SaveResult.Success.class, result);
-        assertFalse(list.isEmpty());
-        assertNull(((SaveResult.Success) result).value());
+        assertNotNull(clientTemplate.opsForValue().get(syncKey.key()));
     }
 
     @Test
     public void onStaleFencingToken_shouldReturnFailedResult(){
         SyncKey syncKey = new SyncKey("resource-b");
         Lease lease1 = new Lease.CompleteLease(syncKey, new ClientId(""),-1);
-        SaveResult result = fencingTokenChecker.save(lease1, () -> list.add("another_string"));
+        SaveResult result = fencingTokenValidator.validateAndSave(lease1,"changed_value");
         assertInstanceOf(SaveResult.Failed.class, result);
     }
 
@@ -73,12 +67,11 @@ class FencingTokenCheckerTest {
 
         assertTrue(lease1.fencingToken() < lease2.fencingToken());
 
-        fencingTokenChecker.save(lease2, () -> list.add("some_string"));
-        SaveResult result2 = fencingTokenChecker.save(lease2, () -> list.add("another_string"));
+
+        SaveResult result2 = fencingTokenValidator.validateAndSave(lease2, "changed_value2");
         assertInstanceOf(SaveResult.Success.class, result2);
 
-        fencingTokenChecker.save(lease1, () -> list.add("some_string"));
-        SaveResult result1 = fencingTokenChecker.save(lease1, () -> list.add("another_string"));
+        SaveResult result1 = fencingTokenValidator.validateAndSave(lease2, "changed_value1");
         assertInstanceOf(SaveResult.Failed.class, result1);
     }
 }

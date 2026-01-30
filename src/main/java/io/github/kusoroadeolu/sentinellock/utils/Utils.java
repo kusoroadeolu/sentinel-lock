@@ -12,4 +12,9 @@ public class Utils {
     public static String appendLeasePrefix(@NonNull String key){
         return Constants.LS_PREFIX + key;
     }
+
+    public static String appendClientPrefix(@NonNull String key){
+        return Constants.CLIENT_PREFIX + key;
+    }
+
 }
