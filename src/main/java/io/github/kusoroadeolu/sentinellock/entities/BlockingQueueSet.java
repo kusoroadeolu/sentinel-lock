@@ -1,5 +1,7 @@
 package io.github.kusoroadeolu.sentinellock.entities;
 
+import org.jspecify.annotations.NonNull;
+
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -17,7 +19,7 @@ public class BlockingQueueSet<E> {
         this.set = ConcurrentHashMap.newKeySet();
     }
 
-    public boolean offer(E e){
+    public boolean offer(@NonNull E e){
         if (this.set.add(e)){
             final var canPut = this.blockingQueue.offer(e);
             if (!canPut) {
@@ -30,16 +32,16 @@ public class BlockingQueueSet<E> {
         return false;
     }
 
-    public Optional<E> poll(){
+    public @NonNull Optional<E> poll(){
         final var e = this.blockingQueue.poll();
         if (!isNull(e)) this.set.remove(e);
         return Optional.ofNullable(e);
     }
 
-    public boolean remove(E e){
+    public boolean remove(@NonNull E e){
         final var removed = this.blockingQueue.remove(e);
         this.set.remove(e);
-        return false;
+        return removed;
     }
 
 

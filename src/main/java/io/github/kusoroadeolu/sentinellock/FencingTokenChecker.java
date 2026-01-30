@@ -29,14 +29,14 @@ public class FencingTokenChecker<T> {
     private final SentinelLockConfigProperties configProperties;
     private final static String LOG_MESSAGE = "Save transaction for fencing token: {} failed due to a race condition";
 
-    public @NonNull SaveResult save(@NonNull Lease lease, @NonNull Runnable action){
+    public SaveResult save(@NonNull Lease lease, @NonNull Runnable action){
         final var redisOps = this.synchronizerTemplate.opsForValue().getOperations();
         return redisOps.execute(new RunnableSessionCallback(lease, action, configProperties));
     }
 
-    public @NonNull SaveResult save(@NonNull Lease lease, @NonNull T t , @NonNull Function<T, ?> action){
+    public SaveResult save(@NonNull Lease lease, @NonNull T t , @NonNull Function<T, ?> action){
         final var redisOps = this.synchronizerTemplate.opsForValue().getOperations();
-        return (SaveResult) redisOps.execute(new FunctionSessionCallback(lease, action, t, configProperties));
+        return redisOps.execute(new FunctionSessionCallback<>(lease, action, t, configProperties));
     }
 
     public interface SaveResult {
