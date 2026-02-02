@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 // Test when obtaining a sync failed, should get a failed lease response
 @SpringBootTest
 @Slf4j
-class SyncRegistryTest {
+class LeaseRegistryTest {
 
     @Autowired
     private LeaseRegistry leaseRegistry;
@@ -93,7 +93,6 @@ class SyncRegistryTest {
         Lease.CompleteLease l2 =  future2.join().asCompleteLease();
         assertTrue(l2.fencingToken() > l1.fencingToken());
     }
-
 
 
 }

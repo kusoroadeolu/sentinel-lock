@@ -7,7 +7,6 @@ import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseTransactionException;
-import io.github.kusoroadeolu.sentinellock.utils.Utils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -85,6 +84,15 @@ public class LeaseRegistry {
         final var syncTtl = this.configProperties.syncIdleTtl();
 
         //If another client modifies in between us watching and our call to exec, we can assume another client has acquired the lease
+        //But this only true in the case only clients are acquiring leases but not manually releasing them
+        //... A client which already has a lease could try to release it but while queueing its transactions, it's lease expires, at that exact moment, another client could be tried to acquire the lease
+        //The client holding the lease's transaction succeeds, and the acquiring client's transaction fails. If the retry logic wasn't there, the acquiring client could sit in the queue forever
+        // thinking the sync is still leased because of that minor race condition. So my first argument is not valid as of this moment.
+        // Another change I can make is active polling on separate vthreads to improve resilience and robustness in the case after all x retries the acquiring client's transaction fails though unlikely,
+        // leading to the same issue of sitting in the client queue forever
+
+
+
         try {
            return this.leaseRetryTemplate.execute(() ->
                  redisOps.execute(
@@ -92,7 +100,8 @@ public class LeaseRegistry {
                 )
             );
         } catch (RetryException e){
-            return new LeaseResult.TransactionError(e);
+            if (e.getLastException() instanceof LeaseTransactionException _) return new LeaseResult.TransactionError(e);
+            else return LEASED;
         }
 
     }
@@ -114,7 +123,7 @@ public class LeaseRegistry {
         if (isNull(sync)) {
             final var newSync = new Synchronizer(0L);
             final var isAbsent = this.synchronizerTemplate.opsForValue().setIfAbsent(key, newSync, Duration.ofMillis(syncTtl));
-            if (isAbsent) return newSync;
+            if (isAbsent) return newSync; //TODO Create a sharded thread service that actively polls for expired leases
         }
 
         return sync;
@@ -150,7 +159,7 @@ public class LeaseRegistry {
                 final var res = ops.exec();
                 if (res.isEmpty()) {
                     log.info("Lease acquire transaction for client: {} failed due to a race condition", id);
-                    return LEASED;
+                    throw new LeaseConflictException();
                 } else {
                     synchronizerTemplate.opsForValue().set(syncKey, new Synchronizer(nextToken), Duration.ofMillis(syncTtl));
                     return new Success(new CompleteLease(key, id ,nextToken));
