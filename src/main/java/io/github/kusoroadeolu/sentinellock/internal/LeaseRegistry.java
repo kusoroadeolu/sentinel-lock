@@ -1,12 +1,12 @@
-package io.github.kusoroadeolu.sentinellock;
+package io.github.kusoroadeolu.sentinellock.internal;
 
-import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.AlreadyLeased;
-import io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.Success;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.entities.Lease.CompleteLease;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseConflictException;
 import io.github.kusoroadeolu.sentinellock.exceptions.LeaseTransactionException;
+import io.github.kusoroadeolu.sentinellock.internal.LeaseRegistry.LeaseResult.AlreadyLeased;
+import io.github.kusoroadeolu.sentinellock.internal.LeaseRegistry.LeaseResult.Success;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -21,10 +21,11 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 
-import static io.github.kusoroadeolu.sentinellock.LeaseRegistry.LeaseResult.AlreadyLeased.LEASED;
 import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.FAILED;
 import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease;
-import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.*;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.ERR;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.INVALID_LEASE_DURATION;
+import static io.github.kusoroadeolu.sentinellock.internal.LeaseRegistry.LeaseResult.AlreadyLeased.LEASED;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendLeasePrefix;
 import static io.github.kusoroadeolu.sentinellock.utils.Utils.appendSyncPrefix;
 import static java.util.Objects.isNull;
@@ -60,13 +61,8 @@ public class LeaseRegistry {
         final var leaseResult = this.createLease(syncKey, leaseDuration, clientId);
          switch (leaseResult){
             case AlreadyLeased _ -> {
-                 boolean notFull = this.requestQueue.offer(request, future);
-                 if (!notFull) {
-                     future.completeExceptionally(new FailedLease(QUEUE_FULL), FAILED);
-                     log.info("Failed to add client: {} requesting for sync key: {} to queue", clientId, syncKey);
-                 }else {
-                     log.info("Added client: {} requesting for sync key: {} to queue", clientId, syncKey);
-                 }
+                 boolean notFull = this.requestQueue.offer(request, future); //Returns true if not full, false otherwise
+                this.requestQueue.handleFutureIfQueueFull(notFull, future, clientId, syncKey);
             }
             case Success s -> {
                 future.complete(s.lrp());
@@ -123,7 +119,9 @@ public class LeaseRegistry {
         if (isNull(sync)) {
             final var newSync = new Synchronizer(0L);
             final var isAbsent = this.synchronizerTemplate.opsForValue().setIfAbsent(key, newSync, Duration.ofMillis(syncTtl));
-            if (isAbsent) return newSync; //TODO Create a sharded thread service that actively polls for expired leases
+            if (isAbsent) {
+                return newSync; //TODO Create a sharded thread service that actively polls for expired leases
+            }
         }
 
         return sync;

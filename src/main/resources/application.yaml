@@ -14,5 +14,6 @@ sentinel-lock:
   min-lease-request-duration: 2_000 # In millis
   sync_idle_ttl: 1_000_000 # In millis
   max-lease-request-duration: 30_000
+  poll-rate-ms: 1000ms
   client:
     key_ttl: 1_000_000

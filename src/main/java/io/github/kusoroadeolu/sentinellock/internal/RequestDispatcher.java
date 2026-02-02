@@ -1,4 +1,4 @@
-package io.github.kusoroadeolu.sentinellock;
+package io.github.kusoroadeolu.sentinellock.internal;
 
 import io.github.kusoroadeolu.sentinellock.entities.CompletableLease;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;

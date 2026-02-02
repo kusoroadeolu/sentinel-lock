@@ -1,12 +1,12 @@
 package io.github.kusoroadeolu.sentinellock;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.core.RedisOperations;
-import org.springframework.data.redis.core.SessionCallback;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
 import java.util.List;
@@ -143,5 +143,35 @@ public class RedisTemplateTest {
         thread2.join();
 
         System.out.println("After TTL extension, exec() returned: " + resultHolder.get());
+    }
+
+    @Test
+    void testRedisKeyCount_usingCountExistingKeys(){
+        final var prefix = "prefix:";
+        final var key1 = prefix + 1;
+        final var key2 = prefix + 2;
+        final var key3 = prefix + 3;
+        final var key4 = "arandomkeywithnoprefix";
+        final var list = List.of(key1, key2, key3, key4);
+        final var wildcard = prefix + "*";
+
+        for (String key : list){
+            testTemplate.opsForValue().set(key, key, Duration.ofMinutes(5));
+        }
+
+        var options = KeyScanOptions
+                .scanOptions()
+                .count(100)
+                .match(wildcard)
+                .build();
+        int keysProcessed = 0;
+        try (var cursor = testTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                ++keysProcessed;
+                cursor.next();
+            }
+        }
+
+        Assertions.assertEquals(3, keysProcessed);
     }
 }

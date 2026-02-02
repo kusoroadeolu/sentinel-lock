@@ -4,7 +4,7 @@ package io.github.kusoroadeolu.sentinellock.services;
 import io.github.kusoroadeolu.Lease;
 import io.github.kusoroadeolu.LeaseRequest;
 import io.github.kusoroadeolu.LeaseServiceGrpc;
-import io.github.kusoroadeolu.sentinellock.RequestDispatcher;
+import io.github.kusoroadeolu.sentinellock.internal.RequestDispatcher;
 import io.github.kusoroadeolu.sentinellock.entities.PendingRequest;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;

@@ -1,10 +1,11 @@
-package io.github.kusoroadeolu.sentinellock;
+package io.github.kusoroadeolu.sentinellock.internal;
 
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 
 import io.github.kusoroadeolu.sentinellock.entities.Lease.TimedOutLease;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
@@ -13,9 +14,11 @@ import java.util.Optional;
 import java.util.concurrent.*;
 
 import static io.github.kusoroadeolu.sentinellock.entities.CompletableLease.Status.*;
+import static io.github.kusoroadeolu.sentinellock.entities.Lease.FailedLease.Cause.QUEUE_FULL;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RequestQueue {
     private final Map<String, BlockingQueueSet<QueuedPendingRequest>> map;
     private final SentinelLockConfigProperties sentinelLockConfigProperties;
@@ -43,6 +46,15 @@ public class RequestQueue {
     public boolean remove(@NonNull QueuedPendingRequest qpr){
         final var key = qpr.request().syncKey().key();
         return this.map.get(key).remove(qpr);
+    }
+
+    public void handleFutureIfQueueFull(boolean notFull, CompletableLease future, ClientId clientId, SyncKey syncKey){
+        if (!notFull) {
+            future.completeExceptionally(new Lease.FailedLease(QUEUE_FULL), FAILED);
+            log.info("Failed to add client: {} requesting for sync key: {} to queue", clientId, syncKey);
+        }else {
+            log.info("Added client: {} requesting for sync key: {} to queue", clientId, syncKey);
+        }
     }
 
 }

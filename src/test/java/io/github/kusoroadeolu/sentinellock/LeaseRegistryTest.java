@@ -1,6 +1,7 @@
 package io.github.kusoroadeolu.sentinellock;
 
 import io.github.kusoroadeolu.sentinellock.entities.*;
+import io.github.kusoroadeolu.sentinellock.internal.LeaseRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

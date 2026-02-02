@@ -30,4 +30,9 @@ public class MiscConfig {
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
+    @Bean(name = "pollingExecutor")
+    public ExecutorService pollingExecutor(){
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
 }

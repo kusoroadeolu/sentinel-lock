@@ -1,4 +1,4 @@
-package io.github.kusoroadeolu.sentinellock;
+package io.github.kusoroadeolu.sentinellock.internal;
 
 import io.github.kusoroadeolu.sentinellock.entities.LeaseState;
 import io.github.kusoroadeolu.sentinellock.entities.SyncKey;
@@ -19,7 +19,7 @@ import static io.github.kusoroadeolu.sentinellock.utils.Constants.SYNC_PREFIX;
 @RequiredArgsConstructor
 public class RedisExpiryHandler {
     //FLOW: Ask -> Try acquire -> Fail -> Queue -> Trigger event -> Poll -> Retry asking till lease acquire | Timeout
-    private final RedisTemplate<String, LeaseState> lockStateTemplate;
+    private final RedisTemplate<String, LeaseState> leaseStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
     private final RequestQueue requestQueue;
     private final LeaseRegistry registry;
@@ -32,15 +32,11 @@ public class RedisExpiryHandler {
         if (key.startsWith(SYNC_PREFIX)){
             log.info("Sync expiry triggered for key {}", key);
             this.synchronizerTemplate.delete(key);
-            this.lockStateTemplate.delete(key);
+            this.leaseStateTemplate.delete(key);
         }else if (key.startsWith(LS_PREFIX)){
             log.info("Lease state expiry triggered for key {}", key);
             var opt = this.requestQueue.poll(new SyncKey(key));
-            if (opt.isPresent()){
-                var p = opt.get();
-                this.requestQueue.remove(p);
-                this.registry.tryAcquireOrQueue(p.request(), p.future());
-            }
+            opt.ifPresent(p -> this.registry.ask(p.request(), p.future()));
         }
     }
 }

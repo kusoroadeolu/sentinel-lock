@@ -1,4 +1,4 @@
-package io.github.kusoroadeolu.sentinellock;
+package io.github.kusoroadeolu.sentinellock.internal;
 
 import io.github.kusoroadeolu.sentinellock.configprops.ClientConfigProperties;
 import io.github.kusoroadeolu.sentinellock.configprops.SentinelLockConfigProperties;
@@ -36,7 +36,6 @@ public class FencingTokenValidator {
         final var redisOps = this.synchronizerTemplate.opsForValue().getOperations();
         return redisOps.execute(new FencingTokenSessionCallback(lease, value , clientTemplate ,sentinelLockConfigProperties, clientConfigProperties));
     }
-
 
     public interface SaveResult {
         default boolean isValid(){
