@@ -1,13 +1,10 @@
-package io.github.kusoroadeolu.sentinellock.services;
+package io.github.kusoroadeolu.sentinellock.grpc;
 
-import io.github.kusoroadeolu.*;
 import io.github.kusoroadeolu.ClientId;
-import io.github.kusoroadeolu.CompleteLease;
 import io.github.kusoroadeolu.LeaseRequest;
 import io.github.kusoroadeolu.LeaseServiceGrpc;
 import io.github.kusoroadeolu.SyncKey;
 import io.grpc.ManagedChannelBuilder;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

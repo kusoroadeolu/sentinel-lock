@@ -3,13 +3,14 @@ package io.github.kusoroadeolu.sentinellock.entities;
 import io.github.kusoroadeolu.sentinellock.annotations.Proto;
 import org.jspecify.annotations.NonNull;
 
+
 @Proto
 public interface Lease {
     io.github.kusoroadeolu.Lease toProto();
     //TODO add client id field to proto
     record CompleteLease(@NonNull SyncKey key, @NonNull ClientId id, long fencingToken) implements Lease{
         public io.github.kusoroadeolu.Lease toProto(){
-            final var complete = io.github.kusoroadeolu.CompleteLease
+            final var complete = io.github.kusoroadeolu.Lease.CompleteLease
                     .newBuilder()
                     .setFencingToken(this.fencingToken)
                     .setKey(this.key.toProto())
@@ -25,7 +26,7 @@ public interface Lease {
     record FailedLease(Cause cause) implements Lease{
         @Override
         public io.github.kusoroadeolu.Lease toProto() {
-            final var failed = io.github.kusoroadeolu.FailedLease
+            final var failed = io.github.kusoroadeolu.Lease.FailedLease
                     .newBuilder()
                     .setCause(cause.toProto())
                     .build();
@@ -39,11 +40,11 @@ public interface Lease {
         public enum Cause{
             ERR, QUEUE_FULL, INVALID_LEASE_DURATION;
 
-            io.github.kusoroadeolu.FailedLease.Cause toProto(){
+            io.github.kusoroadeolu.Lease.FailedLease.Cause toProto(){
                 return switch (this){
-                    case ERR -> io.github.kusoroadeolu.FailedLease.Cause.ERR;
-                    case QUEUE_FULL -> io.github.kusoroadeolu.FailedLease.Cause.QUEUE_FULL;
-                    case INVALID_LEASE_DURATION -> io.github.kusoroadeolu.FailedLease.Cause.INVALID_LEASE_DURATION;
+                    case ERR -> io.github.kusoroadeolu.Lease.FailedLease.Cause.ERR;
+                    case QUEUE_FULL -> io.github.kusoroadeolu.Lease.FailedLease.Cause.QUEUE_FULL;
+                    case INVALID_LEASE_DURATION -> io.github.kusoroadeolu.Lease.FailedLease.Cause.INVALID_LEASE_DURATION;
                 };
             }
         }
@@ -52,7 +53,7 @@ public interface Lease {
     record TimedOutLease() implements Lease{
         @Override
         public io.github.kusoroadeolu.Lease toProto() {
-            final var timedOut = io.github.kusoroadeolu.TimedOutLease
+            final var timedOut = io.github.kusoroadeolu.Lease.TimedOutLease
                     .getDefaultInstance();
 
             return io.github.kusoroadeolu.Lease.newBuilder()

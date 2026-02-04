@@ -13,7 +13,7 @@ import static java.lang.Thread.ofVirtual;
 
 @Configuration
 @RequiredArgsConstructor
-public class MiscConfig {
+public class MiscConfiguration {
 
     @Bean
     public Map<String, BlockingQueueSet<QueuedPendingRequest>> map(){

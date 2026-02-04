@@ -1,7 +1,7 @@
 package io.github.kusoroadeolu.sentinellock;
 
+import io.github.kusoroadeolu.sentinellock.entities.SaveResult;
 import io.github.kusoroadeolu.sentinellock.internal.FencingTokenValidator;
-import io.github.kusoroadeolu.sentinellock.internal.FencingTokenValidator.SaveResult;
 import io.github.kusoroadeolu.sentinellock.entities.*;
 import io.github.kusoroadeolu.sentinellock.internal.LeaseRegistry;
 import org.junit.jupiter.api.Test;

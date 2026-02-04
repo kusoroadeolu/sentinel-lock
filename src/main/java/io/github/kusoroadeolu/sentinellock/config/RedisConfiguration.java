@@ -25,8 +25,8 @@ import static io.github.kusoroadeolu.sentinellock.utils.Constants.LS_PREFIX;
 import static io.github.kusoroadeolu.sentinellock.utils.Constants.SYNC_PREFIX;
 
 @Configuration
-@EnableRedisRepositories(keyspaceConfiguration = RedisConfig.MyKeyspaceConfig.class, enableKeyspaceEvents = RedisKeyValueAdapter.EnableKeyspaceEvents.ON_STARTUP)
-public class RedisConfig extends KeyspaceConfiguration{
+@EnableRedisRepositories(keyspaceConfiguration = RedisConfiguration.MyKeyspaceConfig.class, enableKeyspaceEvents = RedisKeyValueAdapter.EnableKeyspaceEvents.ON_STARTUP)
+public class RedisConfiguration extends KeyspaceConfiguration{
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory(){

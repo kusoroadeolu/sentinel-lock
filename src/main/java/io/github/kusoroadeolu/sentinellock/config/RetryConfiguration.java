@@ -15,7 +15,7 @@ import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
-public class RetryConfig {
+public class RetryConfiguration {
 
     private final LeaseRetryProperties leaseRetryProperties;
 

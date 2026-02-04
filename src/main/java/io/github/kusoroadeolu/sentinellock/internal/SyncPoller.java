@@ -23,7 +23,7 @@ public class SyncPoller {
     private final ExecutorService pollingExecutor;
     private final RedisTemplate<String, LeaseState> leaseStateTemplate;
     private final RedisTemplate<String, Synchronizer> synchronizerTemplate;
-    private final RequestQueue requestQueue;  //TODO add request key to redis on redis shutdown to prevent loss of data
+    private final RequestQueue requestQueue;
     private final LeaseRegistry registry;
 
     @Async
@@ -37,8 +37,7 @@ public class SyncPoller {
                 .match(wildcard)
                 .build();
 
-        long keyProcessed = 0; //This will be for metrics
-        try (var cursor = this.synchronizerTemplate.scan(options)) {
+        try (final var cursor = this.synchronizerTemplate.scan(options)) {
             while (cursor.hasNext()) {
                 var key = cursor.next();
                 var lockState = this.leaseStateTemplate.opsForValue().get(key);
@@ -51,10 +50,9 @@ public class SyncPoller {
                         this.pollingExecutor.submit(() -> registry.ask(qpr.request(), qpr.future()));
                     });
                 });
-                ++keyProcessed;
             }
         }catch (Exception e){
-            log.info("Failed to poll for expired keys due to ");
+            log.info("Failed to poll for expired keys due to an unexpected error", e);
         }
 
     }

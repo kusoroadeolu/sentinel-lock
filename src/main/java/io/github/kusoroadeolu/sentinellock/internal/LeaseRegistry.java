@@ -44,9 +44,9 @@ public class LeaseRegistry {
         this.tryAcquireOrQueue(request, future);
     }
 
-    public ReleaseResult release(@NonNull Lease lease){
+    public LeaseReleaseResult release(@NonNull Lease lease){
         if (lease instanceof CompleteLease c) return this.releaseLease(c);
-        return ReleaseResult.FAILED;
+        return LeaseReleaseResult.FAILED;
     }
 
     public void tryAcquireOrQueue(@NonNull PendingRequest request, @NonNull CompletableLease future){
@@ -102,14 +102,14 @@ public class LeaseRegistry {
 
     }
 
-    ReleaseResult releaseLease(CompleteLease lease){
+    LeaseReleaseResult releaseLease(CompleteLease lease){
         final var redisOps = this.leaseStateTemplate.opsForValue().getOperations();
         try {
             return this.leaseRetryTemplate.execute(() ->
                     redisOps.execute(new ReleaseTransactionCallback(lease))
             );
         } catch (RetryException e){
-            return ReleaseResult.FAILED;
+            return LeaseReleaseResult.FAILED;
         }
     }
 
@@ -170,9 +170,9 @@ public class LeaseRegistry {
         }
     }
 
-    private record ReleaseTransactionCallback(@NonNull CompleteLease lease) implements SessionCallback<ReleaseResult> {
+    private record ReleaseTransactionCallback(@NonNull CompleteLease lease) implements SessionCallback<LeaseReleaseResult> {
             @SuppressWarnings("unchecked")
-            public ReleaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
+            public LeaseReleaseResult execute(@NonNull RedisOperations ops) throws DataAccessException {
                 final SyncKey rawKey = this.lease.key();
                 var leaseKey = appendLeasePrefix(rawKey.key());
 
@@ -188,7 +188,7 @@ public class LeaseRegistry {
                         || lease.fencingToken() != currState.fencingToken() || currState.isExpired()) {
                     log.info("Failed to release lease: {} because {} isn't the current holder.", leaseKey, lease.id());
                     ops.unwatch();
-                    return ReleaseResult.FAILED;
+                    return LeaseReleaseResult.FAILED;
                 }
 
                 ops.multi();
@@ -197,9 +197,9 @@ public class LeaseRegistry {
                     final var res = ops.exec();
                     if (res.isEmpty()) {
                         log.info("Lease release transaction for client: {} failed due to a race condition", lease.id());
-                        return ReleaseResult.FAILED;
+                        return LeaseReleaseResult.FAILED;
                     }
-                    return ReleaseResult.SUCCESS;
+                    return LeaseReleaseResult.SUCCESS;
                 } catch (DataAccessException e) {
                     ops.discard();
                     log.error("An error occurred while trying to a perform redis transaction to release a lease for key: {}", rawKey, e);
@@ -220,7 +220,5 @@ public class LeaseRegistry {
         record Success(Lease lrp) implements LeaseResult{} //represents if this sync is unleased
     }
 
-    public enum ReleaseResult{
-        SUCCESS, FAILED
-    }
+
 }

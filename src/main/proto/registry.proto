@@ -3,8 +3,12 @@ package sentinelproto;
 
 option java_multiple_files = true;
 option java_package = "io.github.kusoroadeolu";
+import "google/protobuf/any.proto";
+
 service LeaseService {
   rpc acquireLease(LeaseRequest) returns (stream Lease);
+  rpc releaseLease(Lease) returns (LeaseReleaseResult);
+  rpc validateAndSave(TokenSaveRequest) returns (TokenSaveResult);
 }
 
 
@@ -30,24 +34,71 @@ message Lease {
     FailedLease failed = 2;
     TimedOutLease timed_out = 3;
   }
+
+  message CompleteLease {
+    SyncKey key = 1;
+    ClientId id = 2;
+    int64 fencing_token = 3;
+  }
+
+  message FailedLease {
+    Cause cause = 1;
+    enum Cause {
+      ERR = 0;
+      QUEUE_FULL = 1;
+      INVALID_LEASE_DURATION = 2;
+    }
+  }
+
+  message TimedOutLease {}
 }
 
-message CompleteLease {
-  SyncKey key = 1;
-  ClientId id = 2;
-  int64 fencing_token = 3;
-}
 
-message FailedLease {
-  Cause cause = 1;
-  enum Cause {
-    ERR = 0;
-    QUEUE_FULL = 1;
-    INVALID_LEASE_DURATION = 2;
+// Release lease
+message LeaseReleaseResult{
+  enum result{
+     SUCCESS = 0;
+     FAILED = 1;
   }
 }
 
-message TimedOutLease {}
+// Validate and Save
+message TokenSaveRequest{
+    Lease lease = 1;
+    google.protobuf.Any value = 2;
+}
+
+message TokenSaveResult {
+  oneof result {
+     Success success = 1;
+     Invalid invalid = 2;
+     Failed failed = 3;
+  }
+
+  message Success{
+    bool isValid = 1;
+  }
+
+  message Invalid{
+    enum result{
+      INVALID_LEASE = 0;
+    }
+  }
+
+  message Failed{
+    enum Cause {
+      ERR = 0;
+      RACE_CONDITION = 1;
+      ACQUIRED = 2;
+    }
+  }
+}
 
 
-//Fencing token checker stuff
+
+
+
+
+
+
+
